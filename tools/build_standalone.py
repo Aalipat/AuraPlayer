@@ -47,13 +47,14 @@ def should_include(rel_path: str, path_obj: Path, is_lite: bool = False) -> bool
     # Exclude developer tests
     if norm == "tests" or norm.startswith("tests/"):
         return False
+    # Exclude any .gitkeep or hidden files in data
+    if path_obj.name == ".gitkeep" or path_obj.name.startswith("."):
+        return False
     # Exclude C# source code and build artifacts (already compiled into YouTube_Downloader.exe)
     if norm.startswith("src/desktop"):
         return False
     # Don't include downloaded media files or transcripts
-    if norm.startswith("data/downloads") and path_obj.name not in [".gitkeep"]:
-        return False
-    if norm.startswith("data/transcripts") and path_obj.name not in [".gitkeep"]:
+    if norm.startswith("data/downloads") or norm.startswith("data/transcripts"):
         return False
     if norm.startswith("data/.cache"):
         return False
@@ -79,10 +80,6 @@ def package_standalone(is_lite: bool = False):
     print(f"    {ROOT_DIR}")
     print(f"[*] Target Archive:")
     print(f"    {out_zip}\n")
-
-    # Ensure .gitkeep in data directories
-    (ROOT_DIR / "data" / "downloads" / ".gitkeep").touch(exist_ok=True)
-    (ROOT_DIR / "data" / "transcripts" / ".gitkeep").touch(exist_ok=True)
 
     count = 0
     total_bytes = 0
@@ -115,7 +112,9 @@ def package_standalone(is_lite: bool = False):
             "MAX_FILE_SIZE_MB=48\n"
         )
         zf.writestr("AuraPlayer/.env", clean_env)
-        count += 1
+        zf.writestr("AuraPlayer/data/downloads/", "")
+        zf.writestr("AuraPlayer/data/transcripts/", "")
+        count += 3
 
     archive_size_mb = out_zip.stat().st_size / (1024 * 1024)
     raw_size_mb = total_bytes / (1024 * 1024)
