@@ -65,15 +65,23 @@
         </div>
         <div>
           <h1 class="font-bold text-base sm:text-lg leading-tight flex items-center gap-2">
-            <span>Media Downloader</span>
+            <span>AuraPlayer</span>
             <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">YouTube</span>
             <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Spotify</span>
           </h1>
-          <p class="text-xs text-slate-400">دانلودر تخصصی ویدیو، صوت ۳۲۰kbps و لیریکس ترجمه‌شده</p>
+          <p class="text-xs text-slate-400">دانلودر و پلیر تخصصی ویدیو، صوت ۳۲۰kbps و لیریکس ترجمه‌شده</p>
         </div>
       </div>
 
       <div class="flex items-center gap-2 sm:gap-3">
+        <!-- AuraPlayer Update Button -->
+        <button onclick="checkAppUpdate(true)" class="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-medium transition border border-slate-700 shadow-sm" title="بررسی به‌روزرسانی AuraPlayer">
+          <i class="fa-solid fa-arrows-rotate text-emerald-400"></i>
+          <span class="hidden sm:inline">نسخه</span>
+          <span id="appVersionBadge" class="text-[10px] font-mono text-emerald-400 font-bold">v1.0.0</span>
+          <span id="updateAvailableDot" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+        </button>
+
         <!-- Queue & Night Scheduler Button -->
         <button onclick="openQueueModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-medium transition border border-slate-700 shadow-sm" title="صف دانلود و زمان‌بندی شبانه">
           <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i>
@@ -704,6 +712,35 @@
       <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
         <button onclick="closeProxyModal()" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs hover:bg-slate-700">انصراف</button>
         <button onclick="saveProxySettings()" class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black text-xs font-bold transition">اعمال و ذخیره</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AURAPLAYER UPDATE MODAL -->
+  <div id="updateModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="glass w-full max-w-md rounded-2xl border border-emerald-500/40 p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-arrows-rotate text-emerald-400"></i>
+          به‌روزرسانی خودکار AuraPlayer
+        </h3>
+        <button onclick="closeUpdateModal()" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div id="updateModalBody" class="space-y-3 text-xs">
+        <!-- Dynamically rendered via JS -->
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-slate-800 text-xs">
+        <button onclick="closeUpdateModal()" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 font-semibold transition">
+          بستن
+        </button>
+        <button id="btnApplyUpdate" onclick="applyUpdateNow()" class="hidden px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95">
+          <i class="fa-solid fa-download"></i>
+          <span>دانلود و نصب خودکار پچ</span>
+        </button>
       </div>
     </div>
   </div>
@@ -3488,12 +3525,139 @@
       }
     }
 
+    // -------------------------------------------------------------
+    // AuraPlayer In-App Auto-Updater Logic
+    // -------------------------------------------------------------
+    let latestUpdateData = null;
+
+    async function checkAppUpdate(isManual = false) {
+      const badge = document.getElementById('appVersionBadge');
+      const dot = document.getElementById('updateAvailableDot');
+
+      try {
+        if (isManual) {
+          showToast('در حال بررسی نسخه جدید در گیت‌هاب...', 'info');
+        }
+        const res = await fetch('/api/system/update-check');
+        const data = await res.json();
+        latestUpdateData = data;
+
+        if (badge && data.current_version) {
+          badge.textContent = 'v' + data.current_version;
+        }
+
+        if (dot) {
+          if (data.has_update) {
+            dot.classList.remove('hidden');
+          } else {
+            dot.classList.add('hidden');
+          }
+        }
+
+        if (isManual) {
+          showUpdateModal(data);
+        } else if (data.has_update) {
+          showToast(`نسخه جدید AuraPlayer (v${data.latest_version}) موجود است!`, 'info');
+        }
+      } catch (err) {
+        console.warn('Update check failed:', err);
+        if (isManual) {
+          showToast('خطا در بررسی به‌روزرسانی یا عدم دسترسی به اینترنت', 'error');
+        }
+      }
+    }
+
+    function showUpdateModal(data) {
+      const modal = document.getElementById('updateModal');
+      const body = document.getElementById('updateModalBody');
+      const btnApply = document.getElementById('btnApplyUpdate');
+      if (!modal || !body || !btnApply) return;
+
+      if (data.has_update) {
+        const sizeMb = data.patch_size ? (data.patch_size / (1024 * 1024)).toFixed(2) + ' مگابایت' : 'حدود ۱ الی ۲ مگابایت';
+        body.innerHTML = `
+          <div class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-sparkles text-emerald-400"></i>
+                نسخه جدید در گیت‌هاب منتشر شده است!
+              </span>
+              <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-mono font-bold">v${data.latest_version}</span>
+            </div>
+            <p class="text-slate-300 text-[11px]">نسخه فعلی شما: <b class="font-mono text-slate-400">v${data.current_version}</b></p>
+            <p class="text-slate-300 text-[11px]">حجم بسته پچ: <b class="text-emerald-400">${sizeMb}</b> (دانلود دلتا بدون دستکاری فایل‌های شما)</p>
+          </div>
+          ${data.release_notes ? `
+            <div class="space-y-1">
+              <label class="block text-slate-400 font-semibold text-[11px]">توضیحات و تغییرات نسخه جدید:</label>
+              <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-[11px] max-h-36 overflow-y-auto whitespace-pre-wrap font-sans">
+                ${data.release_notes}
+              </div>
+            </div>
+          ` : ''}
+        `;
+        btnApply.classList.remove('hidden');
+        btnApply.disabled = false;
+        btnApply.innerHTML = '<i class="fa-solid fa-download"></i> <span>دانلود و نصب خودکار پچ</span>';
+      } else {
+        body.innerHTML = `
+          <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center space-y-2">
+            <div class="w-10 h-10 mx-auto rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 text-lg">
+              <i class="fa-solid fa-check"></i>
+            </div>
+            <div class="font-bold text-white text-xs">نرم‌افزار شما کاملاً به‌روز است!</div>
+            <div class="text-slate-400 text-[11px]">شما در حال استفاده از آخرین نسخه (<span class="font-mono text-emerald-400">v${data.current_version}</span>) هستید.</div>
+          </div>
+        `;
+        btnApply.classList.add('hidden');
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeUpdateModal() {
+      const modal = document.getElementById('updateModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    async function applyUpdateNow() {
+      const btnApply = document.getElementById('btnApplyUpdate');
+      if (!btnApply) return;
+      btnApply.disabled = true;
+      btnApply.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>در حال دانلود و نصب پچ...</span>';
+
+      try {
+        const patchUrl = latestUpdateData ? latestUpdateData.patch_url : null;
+        const res = await fetch('/api/system/update-apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ patch_url: patchUrl })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast('✅ به‌روزرسانی با موفقیت اعمال شد! برنامه در حال بارگذاری مجدد...', 'success');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1800);
+        } else {
+          showToast(data.detail || data.message || 'خطا در اعمال پچ', 'error');
+          btnApply.disabled = false;
+          btnApply.innerHTML = '<i class="fa-solid fa-download"></i> <span>تلاش مجدد</span>';
+        }
+      } catch (err) {
+        showToast('خطا در دانلود یا اعمال پچ: ' + err.message, 'error');
+        btnApply.disabled = false;
+        btnApply.innerHTML = '<i class="fa-solid fa-download"></i> <span>تلاش مجدد</span>';
+      }
+    }
+
     // Initial load
     loadRecentDownloads();
     checkProxyStatus();
     loadFolderConfig();
     pollActiveTasks(true);
     loadQueueData();
+    setTimeout(() => checkAppUpdate(false), 2500);
   </script>
 </body>
 </html>

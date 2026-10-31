@@ -29,6 +29,7 @@ from src.services.media import MediaService, ThumbnailService, WaveformService
 from src.services.scheduler import scheduler_service
 from src.services.spotify import is_valid_spotify_url, spotify_service
 from src.services.subtitles import SubtitleService
+from src.services.updater import updater_service
 from src.services.youtube import (
     YouTubeService,
     extract_playlist_id,
@@ -816,5 +817,26 @@ async def update_ytdlp():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"خطا در فرآیند بررسی آپدیت: {e}")
+
+
+@app.get("/api/system/update-check")
+async def check_app_update():
+    """Checks GitHub Releases for new AuraPlayer releases and patches."""
+    return await updater_service.check_for_updates()
+
+
+@app.post("/api/system/update-apply")
+async def apply_app_update(request: Request):
+    """Downloads and applies the latest patch.zip from GitHub."""
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    patch_url = body.get("patch_url") if isinstance(body, dict) else None
+    res = await updater_service.download_and_apply_patch(patch_url=patch_url)
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("message", "خطا در اعمال به‌روزرسانی"))
+    return res
 
 

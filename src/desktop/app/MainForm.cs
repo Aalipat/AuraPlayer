@@ -176,7 +176,7 @@ namespace YouTubeDownloaderApp
 
         private void InitializeComponents()
         {
-            Text = "YouTube & Spotify Downloader | دانلودر یوتیوب و اسپاتیفای";
+            Text = "AuraPlayer | YouTube & Spotify Downloader & Player";
             Size = new Size(1220, 840);
             MinimumSize = new Size(920, 640);
             StartPosition = FormStartPosition.CenterScreen;
@@ -203,7 +203,7 @@ namespace YouTubeDownloaderApp
 
             _trayIcon = new NotifyIcon
             {
-                Text = "دانلودر یوتیوب و اسپاتیفای",
+                Text = "AuraPlayer",
                 Icon = Icon ?? SystemIcons.Application,
                 ContextMenuStrip = _trayMenu,
                 Visible = true
@@ -219,7 +219,7 @@ namespace YouTubeDownloaderApp
 
             var splashTitle = new Label
             {
-                Text = "YouTube & Spotify Downloader",
+                Text = "AuraPlayer",
                 Font = new Font("Segoe UI", 18, FontStyle.Bold),
                 ForeColor = Color.White,
                 AutoSize = false,
