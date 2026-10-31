@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import urllib.parse
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, Generator, Optional
 
@@ -23,7 +24,9 @@ from pydantic import BaseModel
 
 from src.bot.config import BASE_DIR, settings
 from src.panel.tasks import task_manager
-from src.services.media import MediaService, ThumbnailService
+from src.services.lyrics import lyrics_service
+from src.services.media import MediaService, ThumbnailService, WaveformService
+from src.services.scheduler import scheduler_service
 from src.services.spotify import is_valid_spotify_url, spotify_service
 from src.services.subtitles import SubtitleService
 from src.services.youtube import (
@@ -34,7 +37,18 @@ from src.services.youtube import (
 )
 from src.utils.formatting import format_bytes, format_seconds
 
-app = FastAPI(title="Local YouTube & Spotify Downloader Panel")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Start scheduler loop in background
+    sched_task = asyncio.create_task(scheduler_service.start_background_loop(task_manager))
+    yield
+    # Shutdown
+    scheduler_service.stop()
+    sched_task.cancel()
+
+
+app = FastAPI(title="Local YouTube & Spotify Downloader Panel", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -72,6 +86,26 @@ class SpotifyLyricsRequest(BaseModel):
     title: Optional[str] = None
     artist: Optional[str] = None
     duration: Optional[int] = 0
+
+
+class QueueAddRequest(BaseModel):
+    url: str
+    type: str  # "video", "audio", "spotify_audio", etc.
+    quality: Optional[str] = "720"
+    lang: Optional[str] = "fa"
+    title: Optional[str] = None
+    extra: Optional[Dict[str, Any]] = None
+
+
+class QueueRemoveRequest(BaseModel):
+    id: str
+
+
+class QueueConfigRequest(BaseModel):
+    schedule_enabled: Optional[bool] = None
+    schedule_start: Optional[str] = None
+    schedule_end: Optional[str] = None
+    bandwidth_limit_kbps: Optional[int] = None
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -198,6 +232,41 @@ async def clear_completed_tasks():
             task_manager.dismiss_task(t["id"])
             count += 1
     return {"success": True, "cleared": count}
+
+
+@app.get("/api/queue")
+async def get_queue():
+    return scheduler_service.load_config()
+
+
+@app.post("/api/queue/add")
+async def add_to_queue(req: QueueAddRequest):
+    item = scheduler_service.add_item(
+        url=req.url,
+        type_=req.type,
+        quality=req.quality,
+        lang=req.lang,
+        title=req.title,
+        extra=req.extra,
+    )
+    return {"success": True, "item": item}
+
+
+@app.post("/api/queue/remove")
+async def remove_from_queue(req: QueueRemoveRequest):
+    removed = scheduler_service.remove_item(req.id)
+    return {"success": removed}
+
+
+@app.post("/api/queue/config")
+async def update_queue_config(req: QueueConfigRequest):
+    cfg = scheduler_service.update_config(
+        enabled=req.schedule_enabled,
+        start=req.schedule_start,
+        end=req.schedule_end,
+        bandwidth_limit_kbps=req.bandwidth_limit_kbps,
+    )
+    return {"success": True, "config": cfg}
 
 
 @app.post("/api/spotify/lyrics")
@@ -398,6 +467,50 @@ async def get_media_thumbnail(path: str):
         "ETag": f'"{thumb.stat().st_mtime}-{thumb.stat().st_size}"'
     }
     return FileResponse(thumb, media_type=mime, headers=headers)
+
+
+@app.get("/api/media/waveform")
+async def get_media_waveform(path: str, samples: int = 120):
+    target = Path(path).resolve()
+    base_folder = settings.download_dir.resolve()
+    if not target.is_relative_to(base_folder):
+        raise HTTPException(status_code=403, detail="دسترسی غیرمجاز به فایل.")
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="فایل مدیا یافت نشد.")
+
+    samples = max(20, min(300, int(samples)))
+    peaks = await WaveformService.get_or_create_waveform(target, samples=samples)
+    return {"peaks": peaks, "samples": len(peaks)}
+
+
+@app.get("/api/media/lyrics")
+async def get_media_lyrics(
+    path: Optional[str] = None,
+    title: Optional[str] = None,
+    artist: Optional[str] = None,
+    album: Optional[str] = None,
+    duration: Optional[float] = 0,
+):
+    target = None
+    if path:
+        p = Path(path).resolve()
+        base_folder = settings.download_dir.resolve()
+        if p.is_relative_to(base_folder) and p.exists() and p.is_file():
+            target = p
+
+    clean_title = (title or "").strip()
+    clean_artist = (artist or "").strip()
+    if not clean_title and target:
+        clean_title = target.stem
+
+    res = await lyrics_service.get_lyrics(
+        media_path=target,
+        title=clean_title,
+        artist=clean_artist,
+        album=album or "",
+        duration=duration or 0,
+    )
+    return res
 
 
 class DeleteDownloadRequest(BaseModel):

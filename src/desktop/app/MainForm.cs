@@ -139,6 +139,7 @@ namespace YouTubeDownloaderApp
         private ProgressBar? _splashProgressBar;
         private NotifyIcon? _trayIcon;
         private ContextMenuStrip? _trayMenu;
+        private MiniPlayerForm? _miniPlayer;
         private Process? _pythonProcess;
         private EventWaitHandle? _wakeupEvent;
         private Thread? _wakeupThread;
@@ -541,8 +542,91 @@ namespace YouTubeDownloaderApp
                         }
                     });
                 }
+                else if (msg.StartsWith("mini_player:"))
+                {
+                    HandleMiniPlayerMessage(msg.Substring("mini_player:".Length));
+                }
             }
             catch { }
+        }
+
+        private void HandleMiniPlayerMessage(string data)
+        {
+            Invoke(() =>
+            {
+                try
+                {
+                    if (data.StartsWith("open|"))
+                    {
+                        var parts = data.Substring("open|".Length).Split('|');
+                        string title = "نام قطعه";
+                        string artist = "هنرمند";
+                        bool playing = false;
+                        string cover = "";
+
+                        foreach (var part in parts)
+                        {
+                            var kv = part.Split(new[] { '=' }, 2);
+                            if (kv.Length == 2)
+                            {
+                                string key = kv[0];
+                                string val = Uri.UnescapeDataString(kv[1]);
+                                if (key == "title") title = val;
+                                else if (key == "artist") artist = val;
+                                else if (key == "playing") playing = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+                                else if (key == "cover") cover = val;
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(cover) && cover.StartsWith("/"))
+                        {
+                            cover = _serverUrl + cover;
+                        }
+
+                        if (_miniPlayer == null || _miniPlayer.IsDisposed)
+                        {
+                            _miniPlayer = new MiniPlayerForm();
+                            _miniPlayer.OnCommand += cmd =>
+                            {
+                                Invoke(() =>
+                                {
+                                    _webView?.ExecuteScriptAsync($"window.miniPlayerCommand('{cmd}')");
+                                });
+                            };
+                            _miniPlayer.OnRestoreMainWindow += () =>
+                            {
+                                Invoke(() =>
+                                {
+                                    RestoreWindow();
+                                });
+                            };
+                        }
+
+                        _miniPlayer.UpdateInfo(title, artist, playing, cover);
+                        if (!_miniPlayer.Visible)
+                        {
+                            _miniPlayer.Show();
+                        }
+                        _miniPlayer.BringToFront();
+                    }
+                    else if (data.StartsWith("state|"))
+                    {
+                        if (_miniPlayer != null && !_miniPlayer.IsDisposed && _miniPlayer.Visible)
+                        {
+                            bool playing = data.Contains("playing=true");
+                            _miniPlayer.UpdatePlayState(playing);
+                        }
+                    }
+                    else if (data == "close")
+                    {
+                        if (_miniPlayer != null && !_miniPlayer.IsDisposed)
+                        {
+                            _miniPlayer.Hide();
+                        }
+                    }
+                }
+                catch { }
+            });
         }
 
         protected override void WndProc(ref Message m)
@@ -679,6 +763,17 @@ namespace YouTubeDownloaderApp
                 _trayIcon.Visible = false;
                 _trayIcon.Dispose();
                 _trayIcon = null;
+            }
+
+            if (_miniPlayer != null)
+            {
+                try
+                {
+                    _miniPlayer.Close();
+                    _miniPlayer.Dispose();
+                }
+                catch { }
+                _miniPlayer = null;
             }
 
             if (_pythonProcess != null && !_pythonProcess.HasExited)

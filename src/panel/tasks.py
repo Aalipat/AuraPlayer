@@ -4,6 +4,7 @@ Supports YouTube videos, YouTube audio/subtitles, and Spotify tracks/albums/lyri
 """
 import asyncio
 import logging
+import re
 import time
 import uuid
 from pathlib import Path
@@ -19,6 +20,21 @@ from src.services.youtube import YouTubeService, extract_video_id
 from src.utils.formatting import format_bytes, sanitize_filename
 
 logger = logging.getLogger(__name__)
+
+_VIDEO_ID_PATTERN = re.compile(r'\[([a-zA-Z0-9_-]{11})\]')
+
+
+def _get_existing_video_ids(target_dir: Path) -> set[str]:
+    """Scans playlist directory for files tagged with [video_id]."""
+    existing = set()
+    if not target_dir.exists():
+        return existing
+    for f in target_dir.iterdir():
+        if f.is_file():
+            m = _VIDEO_ID_PATTERN.search(f.name)
+            if m:
+                existing.add(m.group(1))
+    return existing
 
 
 class DownloadTaskManager:
@@ -143,7 +159,7 @@ class DownloadTaskManager:
 
         return hook
 
-    def _get_common_ydl_opts(self, out_tmpl: str, hook: Optional[Callable] = None) -> Dict[str, Any]:
+    def _get_common_ydl_opts(self, out_tmpl: str, hook: Optional[Callable] = None, ratelimit_kbps: int = 0) -> Dict[str, Any]:
         """تنظیمات پایه و مقاوم در برابر قطعی اینترنت و فیلترشکن برای yt-dlp"""
         opts: Dict[str, Any] = {
             'quiet': True,
@@ -173,6 +189,9 @@ class DownloadTaskManager:
         }
         if hook:
             opts['progress_hooks'] = [hook]
+
+        if ratelimit_kbps and ratelimit_kbps > 0:
+            opts['ratelimit'] = int(ratelimit_kbps) * 1024
 
         active_proxy = settings.get_active_proxy()
         if active_proxy:
@@ -477,8 +496,27 @@ class DownloadTaskManager:
                 t["title"] = f"پلی‌لیست یوتیوب ({'ویدیو' if format_type == 'video' else 'صوت'}): {playlist_title}"
                 t["total"] = f"{total_items} {lbl_type}"
 
+                # Delta Sync: identify items already downloaded in this folder
+                existing_ids = _get_existing_video_ids(target_dir)
+                new_items = [item for item in items if not (item.get("id") and item.get("id") in existing_ids)]
+                skipped_count = total_items - len(new_items)
+
+                if skipped_count > 0:
+                    logger.info(f"Playlist delta sync: {len(new_items)} new, {skipped_count} already downloaded.")
+                    t["status"] = f"🔍 {len(new_items)} آیتم جدید | {skipped_count} مورد از قبل موجود"
+
+                if not new_items:
+                    t["progress"] = 100.0
+                    t["filepath"] = str(target_dir)
+                    t["filename"] = target_dir.name
+                    t["status"] = f"✅ تمام {total_items} {lbl_type} از قبل در سیستم موجود است."
+                    t["is_done"] = True
+                    return
+
                 downloaded_count = 0
-                for idx, item in enumerate(items, 1):
+                ratelimit_kbps = extra.get("ratelimit_kbps", 0)
+
+                for idx, item in enumerate(new_items, 1):
                     if t.get("is_cancelled") or (t.get("error") and "لغو" in t.get("error", "")):
                         logger.info(f"YouTube batch task {task_id} aborted by user.")
                         break
@@ -489,16 +527,16 @@ class DownloadTaskManager:
                     v_thumb = item.get("thumbnail")
                     v_url = item.get("url") or f"https://www.youtube.com/watch?v={v_id}"
 
-                    safe_title = sanitize_filename(f"{idx:02d} - {v_title}")
-                    t["status"] = f"در حال دانلود {lbl_type} {idx} از {total_items}: {v_title}"
-                    t["progress"] = round(((idx - 1) / total_items) * 100, 1)
+                    safe_title = sanitize_filename(f"{idx:02d} - {v_title} [{v_id}]" if v_id else f"{idx:02d} - {v_title}")
+                    t["status"] = f"در حال دانلود {lbl_type} {idx} از {len(new_items)} (مجموع {total_items}): {v_title}"
+                    t["progress"] = round(((idx - 1) / len(new_items)) * 100, 1)
 
                     try:
                         if format_type == "video":
                             out_tmpl = str(target_dir / f"{safe_title}_{quality}p.%(ext)s")
 
                             def _down_pl_vid():
-                                opts = self._get_common_ydl_opts(out_tmpl, None)
+                                opts = self._get_common_ydl_opts(out_tmpl, None, ratelimit_kbps=ratelimit_kbps)
                                 opts.update({
                                     'format': (
                                         f"bestvideo[height<={quality}][ext=mp4]+bestaudio[ext=m4a]/"
@@ -527,7 +565,7 @@ class DownloadTaskManager:
                             is_opus = (quality == "opus")
 
                             def _down_pl_aud():
-                                opts = self._get_common_ydl_opts(out_tmpl, None)
+                                opts = self._get_common_ydl_opts(out_tmpl, None, ratelimit_kbps=ratelimit_kbps)
                                 if is_opus:
                                     opts.update({
                                         'format': 'bestaudio[ext=opus]/bestaudio/best',
@@ -586,11 +624,11 @@ class DownloadTaskManager:
                 t["progress"] = 100.0
                 t["filepath"] = str(target_dir)
                 t["filename"] = target_dir.name
-                if downloaded_count == 0 and total_items > 0:
+                if downloaded_count == 0 and skipped_count == 0 and total_items > 0:
                     t["status"] = f"❌ هیچ موردی از {total_items} {lbl_type} دانلود نشد."
                     t["error"] = "خطا در دانلود تمامی موارد یا لغو عملیات."
                 else:
-                    t["status"] = f"✅ تعداد {downloaded_count} از {total_items} {lbl_type} با موفقیت در پوشه ذخیره شدند!"
+                    t["status"] = f"✅ تعداد {downloaded_count} جدید ({skipped_count} از قبل موجود) با موفقیت در پوشه ذخیره شدند!"
                 t["is_done"] = True
 
             # -------------------------------------------------------------

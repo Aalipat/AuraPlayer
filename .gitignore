@@ -26,6 +26,7 @@
 /data/.cache/
 /data/server.log
 /data/user_settings.json
+/data/queue.json
 *.log
 
 # --- Python Bytecode & Environments ---

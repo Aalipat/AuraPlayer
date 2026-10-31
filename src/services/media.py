@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
@@ -31,6 +32,9 @@ logger = logging.getLogger(__name__)
 
 THUMBNAILS_CACHE_DIR = settings.data_dir / ".cache" / "thumbnails"
 THUMBNAILS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+WAVEFORM_CACHE_DIR = settings.data_dir / ".cache" / "waveforms"
+WAVEFORM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class ThumbnailService:
@@ -132,6 +136,106 @@ class ThumbnailService:
 
     get_thumbnail = get_or_create_thumbnail
 
+
+class WaveformService:
+    @staticmethod
+    def get_cache_path(media_path: Path) -> Path:
+        stat = media_path.stat()
+        key_raw = f"{media_path.resolve()}_{stat.st_mtime}_{stat.st_size}"
+        cache_hash = hashlib.sha256(key_raw.encode()).hexdigest()
+        return WAVEFORM_CACHE_DIR / f"{cache_hash}.json"
+
+    @classmethod
+    def _sync_extract_peaks(cls, media_path: Path, samples: int = 120) -> list[float]:
+        if not media_path.exists() or not media_path.is_file():
+            return [0.35] * samples
+
+        cache_file = cls.get_cache_path(media_path)
+        if cache_file.exists() and cache_file.stat().st_size > 0:
+            try:
+                data = json.loads(cache_file.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and "peaks" in data and len(data["peaks"]) == samples:
+                    return data["peaks"]
+            except Exception:
+                pass
+
+        duration = 240.0
+        ffprobe_exe = settings.ffprobe_path
+        if Path(ffprobe_exe).exists():
+            probe_cmd = [
+                ffprobe_exe,
+                "-v", "quiet",
+                "-print_format", "json",
+                "-show_format",
+                str(media_path)
+            ]
+            try:
+                out = subprocess.check_output(
+                    probe_cmd,
+                    stderr=subprocess.DEVNULL,
+                    startupinfo=_get_subprocess_startupinfo()
+                ).decode("utf-8", errors="ignore")
+                info = json.loads(out)
+                duration = float(info.get("format", {}).get("duration", 240.0))
+            except Exception:
+                duration = 240.0
+
+        reset_interval = max(1, int(duration / samples))
+        ffmpeg_exe = settings.ffmpeg_path
+        cmd = [
+            ffmpeg_exe,
+            "-i", str(media_path),
+            "-af", f"aresample=8000,astats=metadata=1:reset={reset_interval}",
+            "-f", "null", "-"
+        ]
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                startupinfo=_get_subprocess_startupinfo()
+            )
+            rms_pattern = re.compile(r"lavfi\.astats\.Overall\.RMS_level=(-?\d+\.?\d*)")
+            values = [float(m) for m in rms_pattern.findall(proc.stderr) if float(m) > -120]
+        except Exception as e:
+            logger.warning(f"Failed to run ffmpeg astats: {e}")
+            values = []
+
+        if not values:
+            peaks = [0.35] * samples
+        else:
+            min_v, max_v = min(values), max(values)
+            span = max_v - min_v if max_v != min_v else 1.0
+            normalized = [round(max(0.08, min(1.0, (v - min_v) / span)), 3) for v in values]
+            if len(normalized) != samples:
+                step = len(normalized) / samples
+                peaks = [normalized[min(len(normalized) - 1, int(i * step))] for i in range(samples)]
+            else:
+                peaks = normalized
+
+        # Cache cleanup: if > 500 files, remove oldest
+        try:
+            caches = list(WAVEFORM_CACHE_DIR.glob("*.json"))
+            if len(caches) > 500:
+                caches.sort(key=lambda p: p.stat().st_mtime)
+                for old in caches[:len(caches) - 450]:
+                    try:
+                        old.unlink()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        try:
+            cache_file.write_text(json.dumps({"peaks": peaks}), encoding="utf-8")
+        except Exception as err:
+            logger.debug(f"Could not save waveform cache: {err}")
+
+        return peaks
+
+    @classmethod
+    async def get_or_create_waveform(cls, media_path: Path, samples: int = 120) -> list[float]:
+        return await asyncio.to_thread(cls._sync_extract_peaks, media_path, samples)
 
 
 class MediaService:

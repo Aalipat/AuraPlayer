@@ -74,6 +74,13 @@
       </div>
 
       <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Queue & Night Scheduler Button -->
+        <button onclick="openQueueModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-medium transition border border-slate-700 shadow-sm" title="صف دانلود و زمان‌بندی شبانه">
+          <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i>
+          <span class="hidden sm:inline">صف دانلود</span>
+          <span id="queueBadge" class="hidden px-1.5 py-0.2 bg-cyan-500 text-black text-[10px] font-bold rounded-full">0</span>
+        </button>
+
         <!-- Proxy / Network Status Badge -->
         <button onclick="openProxyModal()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-medium transition border border-slate-700 shadow-sm" title="تنظیمات پروکسی و شبکه">
           <span id="proxyDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
@@ -770,25 +777,32 @@
         </button>
       </div>
 
-      <!-- Live Scrubber Timeline (LTR standard) with Hover Tooltip -->
+      <!-- Live Scrubber Waveform Timeline (LTR standard) with Hover Tooltip -->
       <div class="relative w-full flex items-center gap-2.5">
         <span id="playerCurrentTime" class="text-[10px] font-mono text-slate-400 w-9 text-left select-none">00:00</span>
-        <div class="relative flex-1 flex items-center">
-          <input type="range" id="playerScrubber" min="0" max="100" value="0" step="0.1" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sp hover:h-1.5 transition-all">
-          <div id="scrubberTooltip" class="hidden absolute -top-7 bg-slate-900 text-white font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 shadow-md -translate-x-1/2 pointer-events-none">00:00</div>
+        <div class="relative flex-1 flex items-center h-7 group/waveform" id="waveformContainer">
+          <canvas id="waveformCanvas" width="800" height="26" class="w-full h-6 rounded cursor-pointer block"></canvas>
+          <input type="range" id="playerScrubber" min="0" max="100" value="0" step="0.1" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full m-0 z-20">
+          <div id="scrubberTooltip" class="hidden absolute -top-7 bg-slate-900 text-white font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 shadow-md -translate-x-1/2 pointer-events-none z-30">00:00</div>
         </div>
         <span id="playerTotalDuration" class="text-[10px] font-mono text-slate-400 w-9 text-right select-none">00:00</span>
       </div>
     </div>
 
-    <!-- Right Controls (Volume, Folder, Direction Toggle, Close) -->
-    <div class="relative z-10 flex items-center justify-end gap-2 w-1/4 min-w-[150px]">
+    <!-- Right Controls (Volume, Lyrics, MiniPlayer, Folder, Direction Toggle, Close) -->
+    <div class="relative z-10 flex items-center justify-end gap-1.5 w-1/4 min-w-[190px]">
       <div class="hidden sm:flex items-center gap-2">
         <button id="playerMuteBtn" onclick="toggleMute()" class="text-slate-400 hover:text-white transition p-1" title="قطع / وصل صدا (M)">
           <i id="volumeIcon" class="fa-solid fa-volume-high text-xs"></i>
         </button>
-        <input type="range" id="playerVolume" min="0" max="1" step="0.02" value="1" class="w-16 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sp">
+        <input type="range" id="playerVolume" min="0" max="1" step="0.02" value="1" class="w-14 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sp">
       </div>
+      <button id="playerLyricsBtn" onclick="toggleLyricsModal()" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-purple-400 text-xs transition active:scale-95" title="متن ترانه / لیریکس زنده (L)">
+        <i class="fa-solid fa-microphone-lines text-xs"></i>
+      </button>
+      <button id="playerMiniBtn" onclick="openMiniPlayer()" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 text-xs transition active:scale-95" title="مینی‌پلیر شناور دسکتاپ">
+        <i class="fa-solid fa-up-right-from-square text-xs"></i>
+      </button>
       <button id="playerFolderBtn" onclick="" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs transition active:scale-95" title="نمایش فایل در ویندوز اکسپلورر">
         <i class="fa-regular fa-folder-open text-amber-400"></i>
       </button>
@@ -798,6 +812,108 @@
       <button onclick="closeBottomPlayer()" class="p-2 rounded-lg bg-slate-800/80 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 text-xs transition active:scale-95" title="بستن نوار پخش (Esc)">
         <i class="fa-solid fa-xmark"></i>
       </button>
+    </div>
+  </div>
+
+  <!-- LIVE SYNCED KARAOKE LYRICS MODAL -->
+  <div id="lyricsModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-xl z-50 hidden flex flex-col items-center justify-center p-4 sm:p-6 transition-all duration-300">
+    <div class="w-full max-w-2xl h-[85vh] flex flex-col rounded-2xl bg-slate-900/90 border border-slate-800 shadow-2xl overflow-hidden relative">
+      <div id="lyricsAmbientGlow" class="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- Header -->
+      <div class="relative z-10 flex items-center justify-between p-4 border-b border-slate-800/80 bg-slate-900/60">
+        <div class="flex items-center gap-3 min-w-0">
+          <img id="lyricsCoverImg" src="" alt="Cover" class="w-12 h-12 rounded-xl object-cover shadow border border-slate-700">
+          <div class="min-w-0 text-right">
+            <h3 id="lyricsTrackTitle" class="text-white font-bold text-base truncate">نام آهنگ</h3>
+            <p id="lyricsTrackArtist" class="text-xs text-slate-400 truncate">نام خواننده</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="lyricsBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Synced Lyrics</span>
+          <button onclick="toggleLyricsModal()" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Lyrics Scrolling Container -->
+      <div id="lyricsScrollContainer" class="relative z-10 flex-1 overflow-y-auto p-6 space-y-4 text-center scroll-smooth">
+        <div id="lyricsLoadingSpinner" class="flex flex-col items-center justify-center h-full text-slate-400 gap-3 py-16">
+          <i class="fa-solid fa-circle-notch fa-spin text-2xl text-purple-400"></i>
+          <span>در حال بارگذاری لیریکس زنده...</span>
+        </div>
+        <div id="lyricsContentList" class="space-y-4 py-28 hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUEUE & NIGHT SCHEDULER MODAL -->
+  <div id="queueModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="glass w-full max-w-2xl rounded-2xl border border-slate-800 p-6 space-y-5 shadow-2xl max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i>
+          صف دانلود و زمان‌بندی شبانه (Scheduler)
+        </h3>
+        <button onclick="closeQueueModal()" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Scheduler Settings -->
+      <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-moon text-indigo-400 text-sm"></i>
+            <span class="text-sm font-semibold text-slate-200">دانلود خودکار در ساعات شبانه</span>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="queueScheduleToggle" class="sr-only peer" onchange="toggleScheduleSettings()">
+            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+          </label>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+          <div>
+            <label class="text-xs text-slate-400 block mb-1">ساعت شروع دانلود:</label>
+            <input type="time" id="queueStartTime" value="02:00" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+          </div>
+          <div>
+            <label class="text-xs text-slate-400 block mb-1">ساعت پایان دانلود:</label>
+            <input type="time" id="queueEndTime" value="07:00" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-800/80">
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="text-slate-400">محدودکننده سرعت دانلود (Bandwidth Limiter):</span>
+            <span id="bandwidthLimitLabel" class="font-mono text-cyan-400 font-bold">نامحدود</span>
+          </div>
+          <input type="range" id="queueBandwidthSlider" min="0" max="5000" step="128" value="0" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" oninput="updateBandwidthLabel(this.value)">
+        </div>
+
+        <button onclick="saveSchedulerConfig()" class="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-black font-bold rounded-lg text-xs transition shadow-md">
+          ذخیره تنظیمات زمان‌بندی
+        </button>
+      </div>
+
+      <!-- Add to Queue Section -->
+      <div class="flex gap-2">
+        <input type="text" id="queueInputUrl" placeholder="لینک یوتیوب یا اسپاتیفای را برای افزودن به صف وارد کنید..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500">
+        <select id="queueInputType" class="bg-slate-900 border border-slate-700 rounded-xl px-2 py-2 text-xs text-slate-300">
+          <option value="audio">صوت MP3</option>
+          <option value="video">ویدیو 720p</option>
+        </select>
+        <button onclick="addToQueueFromModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition">
+          + افزودن
+        </button>
+      </div>
+
+      <!-- Items List -->
+      <div class="flex-1 overflow-y-auto space-y-2 max-h-60" id="queueItemsList">
+        <div class="text-center py-8 text-xs text-slate-500">صف دانلود خالی است.</div>
+      </div>
     </div>
   </div>
 
@@ -2032,10 +2148,24 @@
     // SPOTIFY-STYLE BOTTOM DOCK PLAYER LOGIC (LUXURY EDITION)
     // ==========================================
     let currentPlayingPath = '';
+    let currentPlayingTitle = '';
+    let currentPlayingArtist = '';
     let currentPlaylistQueue = [];
     let currentQueueIndex = -1;
     let repeatMode = 'off'; // 'off' | 'all' | 'one'
     let preMuteVolume = 1;
+    let activeThemeAccent = 'rgb(30, 215, 96)';
+    let waveformPeaks = [];
+    let currentWaveformPath = null;
+    let currentLyricsData = null;
+    let activeLyricIndex = -1;
+    let isLyricsModalOpen = false;
+
+    // 120-point placeholder waveform wave
+    const defaultPlaceholderPeaks = Array.from({length: 120}, (_, i) => {
+      const v = Math.sin((i / 120) * Math.PI) * 0.45 + Math.sin(i / 15) * 0.15 + 0.25;
+      return Math.max(0.1, Math.min(0.9, v));
+    });
 
     const bottomAudio = document.getElementById('bottomAudio');
     const bottomPlayerBar = document.getElementById('bottomPlayerBar');
@@ -2058,6 +2188,56 @@
       const m = Math.floor(seconds / 60);
       const s = Math.floor(seconds % 60);
       return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function renderWaveformCanvas() {
+      const canvas = document.getElementById('waveformCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width;
+      const H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      const peaks = (waveformPeaks && waveformPeaks.length > 0) ? waveformPeaks : defaultPlaceholderPeaks;
+      const count = peaks.length;
+      const barW = W / count;
+      const progress = (bottomAudio && bottomAudio.duration) ? (bottomAudio.currentTime / bottomAudio.duration) : 0;
+      const accent = activeThemeAccent || 'rgb(30, 215, 96)';
+
+      for (let i = 0; i < count; i++) {
+        const peak = peaks[i] || 0.2;
+        const barH = Math.max(4, Math.round(peak * (H - 4)));
+        const x = Math.round(i * barW);
+        const y = Math.round((H - barH) / 2);
+        const isPlayed = (i / count) <= progress;
+
+        ctx.fillStyle = isPlayed ? accent : 'rgba(100, 116, 139, 0.45)';
+        ctx.beginPath();
+        const w = Math.max(1.5, barW - 1.5);
+        if (ctx.roundRect) {
+          ctx.roundRect(x, y, w, barH, 2);
+        } else {
+          ctx.rect(x, y, w, barH);
+        }
+        ctx.fill();
+      }
+    }
+
+    async function loadWaveform(filePath) {
+      if (currentWaveformPath === filePath && waveformPeaks.length > 0) return;
+      currentWaveformPath = filePath;
+      waveformPeaks = [];
+      renderWaveformCanvas();
+      try {
+        const resp = await fetch(`/api/media/waveform?path=${encodeURIComponent(filePath)}&samples=120`);
+        if (resp.ok) {
+          const data = await resp.json();
+          waveformPeaks = data.peaks || [];
+          renderWaveformCanvas();
+        }
+      } catch (e) {
+        console.warn('Failed to load waveform:', e);
+      }
     }
 
     function setVisualizerState(isPlaying) {
@@ -2097,7 +2277,7 @@
 
         let totalR = 0, totalG = 0, totalB = 0, validPixels = 0;
         let maxSaturation = -1;
-        let vibrantR = 30, vibrantG = 215, vibrantB = 96; // Spotify signature emerald fallback
+        let vibrantR = 30, vibrantG = 215, vibrantB = 96;
 
         for (let i = 0; i < data.length; i += 4) {
           const r = data[i];
@@ -2111,7 +2291,6 @@
           const sat = max === 0 ? 0 : (max - min) / 255;
           const brightness = max / 255;
 
-          // Reject pitch black and pure white to extract rich vibrant hue
           if (brightness > 0.15 && brightness < 0.92 && sat > maxSaturation) {
             maxSaturation = sat;
             vibrantR = r;
@@ -2150,8 +2329,14 @@
       }
 
       const { r, g, b } = color;
+      activeThemeAccent = `rgb(${r}, ${g}, ${b})`;
+      renderWaveformCanvas();
+
       glowEl.style.background = `radial-gradient(ellipse at 20% 50%, rgba(${r}, ${g}, ${b}, 0.42) 0%, rgba(${r}, ${g}, ${b}, 0.12) 55%, transparent 85%)`;
       glowEl.style.opacity = '1';
+
+      const lyricsGlow = document.getElementById('lyricsAmbientGlow');
+      if (lyricsGlow) lyricsGlow.style.background = `radial-gradient(circle, rgba(${r}, ${g}, ${b}, 0.25) 0%, transparent 70%)`;
 
       bar.style.boxShadow = `0 16px 50px rgba(${r}, ${g}, ${b}, 0.32), 0 4px 25px rgba(0, 0, 0, 0.85)`;
       bar.style.borderColor = `rgba(${r}, ${g}, ${b}, 0.45)`;
@@ -2167,6 +2352,9 @@
     }
 
     function resetDynamicTheme() {
+      activeThemeAccent = 'rgb(30, 215, 96)';
+      renderWaveformCanvas();
+
       const glowEl = document.getElementById('playerAmbientGlow');
       const bar = document.getElementById('bottomPlayerBar');
       if (glowEl) glowEl.style.opacity = '0';
@@ -2182,6 +2370,7 @@
         playBtn.style.boxShadow = '';
       }
     }
+
 
     // -------------------------------------------------------------
     // Windows SMTC (System Media Transport Controls) & Media Keys
@@ -2247,6 +2436,8 @@
       
       const displayName = title || fileName;
       const displayArtist = artist || 'پخش زنده درون‌برنامه‌ای';
+      currentPlayingTitle = displayName;
+      currentPlayingArtist = displayArtist;
 
       const titleEl = document.getElementById('playerTitle');
       const artistEl = document.getElementById('playerArtist');
@@ -2262,6 +2453,14 @@
       const folderBtn = document.getElementById('playerFolderBtn');
       if (folderBtn) {
         folderBtn.onclick = () => openDownloadFolder(filePath);
+      }
+
+      // Load audio waveform
+      loadWaveform(filePath);
+
+      // If lyrics modal is currently open, load lyrics for this track
+      if (isLyricsModalOpen) {
+        loadCurrentTrackLyrics();
       }
 
       // Set Cover Thumbnail & Extract Dynamic Palette
@@ -2299,6 +2498,11 @@
         if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-pause text-xs';
         setVisualizerState(true);
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage(
+            `mini_player:open|title=${encodeURIComponent(displayName)}|artist=${encodeURIComponent(displayArtist)}|playing=true|cover=${encodeURIComponent(coverUrl || '')}`
+          );
+        }
       }).catch(err => {
         console.warn('Auto-play caught:', err);
       });
@@ -2423,18 +2627,26 @@
         if (playerScrubber) playerScrubber.value = pct;
         if (playerCurrentTime) playerCurrentTime.textContent = formatTime(bottomAudio.currentTime);
         if (playerTotalDuration) playerTotalDuration.textContent = formatTime(bottomAudio.duration);
+        renderWaveformCanvas();
+        syncLyricsWithAudio(bottomAudio.currentTime);
       });
 
       bottomAudio.addEventListener('play', () => {
         if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-pause text-xs';
         setVisualizerState(true);
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage('mini_player:state|playing=true');
+        }
       });
 
       bottomAudio.addEventListener('pause', () => {
         if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-play text-xs ml-0.5';
         setVisualizerState(false);
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage('mini_player:state|playing=false');
+        }
       });
 
       bottomAudio.addEventListener('ended', () => {
@@ -2451,6 +2663,7 @@
             if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-play text-xs ml-0.5';
             setVisualizerState(false);
             if (playerScrubber) playerScrubber.value = 0;
+            renderWaveformCanvas();
           }
         }
       });
@@ -2460,6 +2673,8 @@
       playerScrubber.addEventListener('input', (e) => {
         if (!bottomAudio.duration) return;
         bottomAudio.currentTime = (e.target.value / 100) * bottomAudio.duration;
+        renderWaveformCanvas();
+        syncLyricsWithAudio(bottomAudio.currentTime);
       });
 
       playerScrubber.addEventListener('mousemove', (e) => {
@@ -2588,6 +2803,12 @@
         return;
       }
 
+      // K: Toggle live lyrics modal
+      if (e.key === 'k' || e.key === 'K') {
+        toggleLyricsModal();
+        return;
+      }
+
       // N: Next track
       if (e.key === 'n' || e.key === 'N') {
         playNextTrack();
@@ -2602,16 +2823,320 @@
 
       // Escape: Close open modals first, otherwise close bottom player
       if (e.key === 'Escape') {
-        const modals = ['lyricsModal', 'folderModal', 'proxyModal', 'subModal'];
+        const modals = ['lyricsModal', 'queueModal', 'folderModal', 'proxyModal', 'subModal'];
         const openModal = modals.map(id => document.getElementById(id)).find(el => el && !el.classList.contains('hidden'));
         if (openModal) {
           openModal.classList.add('hidden');
+          isLyricsModalOpen = false;
           return;
         }
         closeBottomPlayer();
         return;
       }
     });
+
+    // ==========================================
+    // MINI PLAYER & LYRICS & SCHEDULER HELPERS
+    // ==========================================
+
+    function openMiniPlayer() {
+      const title = currentPlayingTitle || document.getElementById('playerTitle')?.textContent || 'نام قطعه';
+      const artist = currentPlayingArtist || document.getElementById('playerArtist')?.textContent || 'هنرمند';
+      const isPlaying = !bottomAudio.paused;
+      const coverSrc = playerCoverImg && !playerCoverImg.classList.contains('hidden') ? playerCoverImg.src : '';
+
+      if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage(
+          `mini_player:open|title=${encodeURIComponent(title)}|artist=${encodeURIComponent(artist)}|playing=${isPlaying}|cover=${encodeURIComponent(coverSrc)}`
+        );
+      } else {
+        showToast('مینی‌پلیر شناور در دسترس میزبان ویندوز قرار دارد.', 'info');
+      }
+    }
+
+    window.miniPlayerCommand = function(cmd) {
+      if (cmd === 'play') {
+        if (bottomAudio.paused) toggleBottomPlay();
+      } else if (cmd === 'pause') {
+        if (!bottomAudio.paused) toggleBottomPlay();
+      } else if (cmd === 'prev') {
+        playPrevTrack();
+      } else if (cmd === 'next') {
+        playNextTrack();
+      }
+    };
+
+    async function toggleLyricsModal() {
+      const modal = document.getElementById('lyricsModal');
+      if (!modal) return;
+      isLyricsModalOpen = !isLyricsModalOpen;
+      if (isLyricsModalOpen) {
+        modal.classList.remove('hidden');
+        await loadCurrentTrackLyrics();
+      } else {
+        modal.classList.add('hidden');
+      }
+    }
+
+    async function loadCurrentTrackLyrics() {
+      const title = currentPlayingTitle || document.getElementById('playerTitle')?.textContent || '';
+      const artist = currentPlayingArtist || document.getElementById('playerArtist')?.textContent || '';
+      const path = currentPlayingPath || '';
+
+      const titleEl = document.getElementById('lyricsTrackTitle');
+      const artistEl = document.getElementById('lyricsTrackArtist');
+      if (titleEl) titleEl.textContent = title || 'نام آهنگ';
+      if (artistEl) artistEl.textContent = artist || 'نام خواننده';
+
+      const coverSrc = playerCoverImg?.src || '';
+      const coverEl = document.getElementById('lyricsCoverImg');
+      if (coverEl) coverEl.src = coverSrc || '/static/logo.png';
+
+      const spinner = document.getElementById('lyricsLoadingSpinner');
+      const listEl = document.getElementById('lyricsContentList');
+      if (spinner) spinner.classList.remove('hidden');
+      if (listEl) {
+        listEl.classList.add('hidden');
+        listEl.innerHTML = '';
+      }
+
+      try {
+        const url = `/api/media/lyrics?path=${encodeURIComponent(path)}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&duration=${bottomAudio.duration || 0}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        currentLyricsData = data;
+        renderLyricsContent(data);
+      } catch (e) {
+        if (listEl) {
+          listEl.innerHTML = '<div class="text-slate-500 py-12 text-sm">خطا در دریافت متن ترانه</div>';
+          listEl.classList.remove('hidden');
+        }
+        if (spinner) spinner.classList.add('hidden');
+      }
+    }
+
+    function renderLyricsContent(data) {
+      const spinner = document.getElementById('lyricsLoadingSpinner');
+      const listEl = document.getElementById('lyricsContentList');
+      if (spinner) spinner.classList.add('hidden');
+      if (!listEl) return;
+      listEl.classList.remove('hidden');
+
+      if (!data || !data.has_lyrics) {
+        listEl.innerHTML = '<div class="text-slate-500 py-16 text-sm">متن ترانه برای این آهنگ یافت نشد.</div>';
+        return;
+      }
+
+      if (data.is_synced && data.lines && data.lines.length > 0) {
+        listEl.innerHTML = data.lines.map((l, i) => `
+          <div id="lyric-line-${i}" onclick="seekToLyricTime(${l.time})" data-time="${l.time}" class="lyric-line py-2.5 px-4 rounded-xl cursor-pointer text-slate-400 text-base sm:text-lg hover:text-slate-200 transition-all duration-200 hover:scale-[1.02]">
+            ${escapeHtml(l.text || '...')}
+          </div>
+        `).join('');
+        activeLyricIndex = -1;
+        syncLyricsWithAudio(bottomAudio.currentTime);
+      } else if (data.plain_lyrics) {
+        listEl.innerHTML = `<div class="text-slate-300 text-sm sm:text-base leading-relaxed whitespace-pre-line py-8">${escapeHtml(data.plain_lyrics)}</div>`;
+      }
+    }
+
+    function seekToLyricTime(time) {
+      if (!bottomAudio.duration) return;
+      bottomAudio.currentTime = Math.max(0, Math.min(bottomAudio.duration, time));
+    }
+
+    function syncLyricsWithAudio(currentTime) {
+      if (!isLyricsModalOpen || !currentLyricsData || !currentLyricsData.is_synced) return;
+      const lines = currentLyricsData.lines || [];
+      if (!lines.length) return;
+
+      let activeIdx = -1;
+      for (let i = 0; i < lines.length; i++) {
+        if (currentTime >= lines[i].time) {
+          activeIdx = i;
+        } else {
+          break;
+        }
+      }
+
+      if (activeIdx !== activeLyricIndex) {
+        if (activeLyricIndex >= 0) {
+          const prevEl = document.getElementById(`lyric-line-${activeLyricIndex}`);
+          if (prevEl) {
+            prevEl.className = 'lyric-line py-2.5 px-4 rounded-xl cursor-pointer text-slate-400 text-base sm:text-lg hover:text-slate-200 transition-all duration-200';
+          }
+        }
+        if (activeIdx >= 0) {
+          const nextEl = document.getElementById(`lyric-line-${activeIdx}`);
+          if (nextEl) {
+            nextEl.className = 'lyric-line py-2.5 px-4 rounded-xl cursor-pointer text-emerald-400 font-bold text-xl sm:text-2xl scale-105 shadow-sm transition-all duration-300 bg-emerald-500/10 border border-emerald-500/20';
+            nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+        activeLyricIndex = activeIdx;
+      }
+    }
+
+    // Queue & Scheduler Functions
+    async function openQueueModal() {
+      const modal = document.getElementById('queueModal');
+      if (modal) modal.classList.remove('hidden');
+      await loadQueueData();
+    }
+
+    function closeQueueModal() {
+      const modal = document.getElementById('queueModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function toggleScheduleSettings() {}
+
+    async function loadQueueData() {
+      try {
+        const res = await fetch('/api/queue');
+        if (res.ok) {
+          const cfg = await res.json();
+          const toggle = document.getElementById('queueScheduleToggle');
+          const startEl = document.getElementById('queueStartTime');
+          const endEl = document.getElementById('queueEndTime');
+          const bwSlider = document.getElementById('queueBandwidthSlider');
+          if (toggle) toggle.checked = !!cfg.schedule_enabled;
+          if (startEl) startEl.value = cfg.schedule_start || '02:00';
+          if (endEl) endEl.value = cfg.schedule_end || '07:00';
+          if (bwSlider) bwSlider.value = cfg.bandwidth_limit_kbps || 0;
+          updateBandwidthLabel(cfg.bandwidth_limit_kbps || 0);
+
+          renderQueueItems(cfg.items || []);
+          updateQueueBadge(cfg.items || []);
+        }
+      } catch (e) {
+        console.warn('Failed to load queue:', e);
+      }
+    }
+
+    function updateBandwidthLabel(val) {
+      const label = document.getElementById('bandwidthLimitLabel');
+      if (!label) return;
+      if (!val || val == 0) {
+        label.textContent = 'نامحدود';
+      } else {
+        label.textContent = `${val} KB/s`;
+      }
+    }
+
+    async function saveSchedulerConfig() {
+      const toggle = document.getElementById('queueScheduleToggle');
+      const startEl = document.getElementById('queueStartTime');
+      const endEl = document.getElementById('queueEndTime');
+      const bwSlider = document.getElementById('queueBandwidthSlider');
+
+      const enabled = toggle ? toggle.checked : false;
+      const start = startEl ? startEl.value : '02:00';
+      const end = endEl ? endEl.value : '07:00';
+      const bw = bwSlider ? parseInt(bwSlider.value) || 0 : 0;
+
+      try {
+        const res = await fetch('/api/queue/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            schedule_enabled: enabled,
+            schedule_start: start,
+            schedule_end: end,
+            bandwidth_limit_kbps: bw
+          })
+        });
+        if (res.ok) {
+          showToast('تنظیمات زمان‌بندی شبانه ذخیره شد.', 'success');
+        }
+      } catch (e) {
+        showToast('خطا در ذخیره تنظیمات: ' + e.message, 'error');
+      }
+    }
+
+    function renderQueueItems(items) {
+      const listEl = document.getElementById('queueItemsList');
+      if (!listEl) return;
+      if (!items || items.length === 0) {
+        listEl.innerHTML = '<div class="text-center py-8 text-xs text-slate-500">صف دانلود خالی است.</div>';
+        return;
+      }
+
+      listEl.innerHTML = items.map(it => {
+        const statusBadge = it.status === 'completed'
+          ? '<span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">تکمیل شده</span>'
+          : (it.status === 'running'
+            ? '<span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 animate-pulse">در حال دانلود</span>'
+            : (it.status === 'error'
+              ? '<span class="text-[10px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-400">خطا</span>'
+              : '<span class="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-slate-300">در انتظار</span>'));
+
+        return `
+          <div class="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+            <div class="min-w-0 flex-1 pr-2">
+              <div class="font-bold text-slate-200 truncate">${escapeHtml(it.title || it.url)}</div>
+              <div class="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                <span>نوع: ${it.type}</span>
+                <span>کیفیت: ${it.quality}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              ${statusBadge}
+              <button onclick="removeQueueItem('${it.id}')" class="p-1 text-slate-500 hover:text-rose-400 transition" title="حذف از صف">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateQueueBadge(items) {
+      const badge = document.getElementById('queueBadge');
+      if (!badge) return;
+      const pendingCount = (items || []).filter(i => i.status === 'pending').length;
+      if (pendingCount > 0) {
+        badge.textContent = pendingCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    async function addToQueueFromModal() {
+      const input = document.getElementById('queueInputUrl');
+      const typeSelect = document.getElementById('queueInputType');
+      const url = (input.value || '').trim();
+      if (!url) return;
+
+      try {
+        const res = await fetch('/api/queue/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url, type: typeSelect.value, quality: '720' })
+        });
+        if (res.ok) {
+          input.value = '';
+          await loadQueueData();
+          showToast('لینک به صف دانلود افزوده شد.', 'success');
+        }
+      } catch (e) {
+        showToast('خطا در افزودن به صف: ' + e.message, 'error');
+      }
+    }
+
+    async function removeQueueItem(itemId) {
+      try {
+        await fetch('/api/queue/remove', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: itemId })
+        });
+        await loadQueueData();
+      } catch (e) {
+        console.warn('Remove queue item error:', e);
+      }
+    }
 
     async function deleteFile(filePath, fileName) {
       if (!confirm(`آیا از حذف فایل "${fileName}" اطمینان دارید؟`)) return;
@@ -2650,6 +3175,7 @@
     checkProxyStatus();
     loadFolderConfig();
     pollActiveTasks(true);
+    loadQueueData();
   </script>
 </body>
 </html>
