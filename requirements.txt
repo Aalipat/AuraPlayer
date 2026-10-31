@@ -9,3 +9,4 @@ httpx>=0.28.0
 youtube-transcript-api>=1.2.0
 requests>=2.30.0
 aiogram>=3.0.0
+syncedlyrics>=1.0.0

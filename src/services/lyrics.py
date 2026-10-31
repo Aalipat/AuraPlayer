@@ -509,6 +509,21 @@ class LyricsService:
         except Exception as err:
             logger.warning(f"LRCLIB request failed: {err}")
 
+        # Tier 4: Multi-provider fallback via syncedlyrics (NetEase, Megalobiz, Musixmatch)
+        if not synced_lrc and not plain_lrc:
+            try:
+                import syncedlyrics
+                search_query = f"{clean_artist} {clean_title}".strip() or clean_title
+                logger.info(f"Querying syncedlyrics fallback for: {search_query}")
+                fallback_lrc = await asyncio.to_thread(
+                    syncedlyrics.search, search_query, providers=["NetEase", "Megalobiz", "Musixmatch"]
+                )
+                if fallback_lrc and fallback_lrc.strip():
+                    synced_lrc = fallback_lrc.strip()
+                    logger.info("Successfully fetched synced lyrics via multi-provider fallback!")
+            except Exception as s_err:
+                logger.debug(f"syncedlyrics fallback search failed: {s_err}")
+
         parsed_lines = parse_lrc(synced_lrc) if synced_lrc else []
         is_synced = len(parsed_lines) > 0
 

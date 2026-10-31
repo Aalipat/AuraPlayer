@@ -224,6 +224,17 @@ class DownloadTaskManager:
                 except Exception as t_err:
                     logger.debug(f"Auto-translate FA to EN failed: {t_err}")
 
+            # If still no transcript (common for music videos), fallback to multi-provider lyrics service
+            if (not en_text or not en_text.strip()) and (not fa_text or not fa_text.strip()):
+                try:
+                    from src.services.lyrics import lyrics_service
+                    lyr = await lyrics_service.get_lyrics(media_path=media_file, title=media_file.stem, include_translation=True)
+                    if lyr.get("has_lyrics"):
+                        en_text = lyr.get("synced_lyrics") or lyr.get("plain_lyrics", "")
+                        fa_text = lyr.get("persian_synced") or lyr.get("persian_plain", "")
+                except Exception as lyr_err:
+                    logger.debug(f"Music video lyrics fallback failed: {lyr_err}")
+
             if en_text and en_text.strip():
                 lrc_path = media_file.with_suffix(".lrc")
                 lrc_path.write_text(en_text, encoding="utf-8")
@@ -325,15 +336,32 @@ class DownloadTaskManager:
                 if not mp3_file or not mp3_file.exists():
                     raise FileNotFoundError("فایل صوتی دانلود نشد.")
 
-                # Fetch lyrics from LRCLIB for embedding into ID3
+                # Fetch lyrics from multi-provider service (LRCLIB + syncedlyrics + Persian translation)
                 t["status"] = "در حال دریافت لیریکس و درج کاور اورجینال اسپاتیفای..."
-                lyrics_data = await spotify_service.get_lyrics(title, artist, duration_sec)
-                lyrics_text = lyrics_data.get("plain_lyrics") or lyrics_data.get("synced_lyrics")
+                lyrics_text = None
+                try:
+                    from src.services.lyrics import lyrics_service
+                    lyrics_data = await lyrics_service.get_lyrics(
+                        media_path=mp3_file,
+                        title=title,
+                        artist=artist,
+                        album=album,
+                        duration=duration_sec,
+                        include_translation=True
+                    )
+                    lyrics_text = lyrics_data.get("plain_lyrics") or lyrics_data.get("synced_lyrics")
 
-                # If synced lyrics exist, save companion .lrc file in downloads
-                if lyrics_data.get("synced_lyrics"):
-                    lrc_path = settings.download_dir / f"{safe_name}.lrc"
-                    lrc_path.write_text(lyrics_data["synced_lyrics"], encoding="utf-8")
+                    # If synced lyrics exist, save companion .lrc file matching mp3 name
+                    if lyrics_data.get("synced_lyrics"):
+                        mp3_file.with_suffix(".lrc").write_text(lyrics_data["synced_lyrics"], encoding="utf-8")
+
+                    # Also save Persian translated synced lyrics
+                    if lyrics_data.get("persian_synced"):
+                        mp3_file.with_name(f"{mp3_file.stem}_persian.lrc").write_text(
+                            lyrics_data["persian_synced"], encoding="utf-8"
+                        )
+                except Exception as lyr_err:
+                    logger.debug(f"Companion lyrics download failed: {lyr_err}")
 
                 await self.media_service.tag_mp3(
                     mp3_path=mp3_file,
@@ -488,6 +516,27 @@ class DownloadTaskManager:
 
                         f_mp3 = Path(out_tmpl.replace('%(ext)s', 'mp3'))
                         if f_mp3.exists():
+                            lyrics_text = None
+                            try:
+                                from src.services.lyrics import lyrics_service
+                                lyrics_data = await lyrics_service.get_lyrics(
+                                    media_path=f_mp3,
+                                    title=t_title,
+                                    artist=t_artist,
+                                    album=t_album,
+                                    duration=t_dur,
+                                    include_translation=True
+                                )
+                                lyrics_text = lyrics_data.get("plain_lyrics") or lyrics_data.get("synced_lyrics")
+                                if lyrics_data.get("synced_lyrics"):
+                                    f_mp3.with_suffix(".lrc").write_text(lyrics_data["synced_lyrics"], encoding="utf-8")
+                                if lyrics_data.get("persian_synced"):
+                                    f_mp3.with_name(f"{f_mp3.stem}_persian.lrc").write_text(
+                                        lyrics_data["persian_synced"], encoding="utf-8"
+                                    )
+                            except Exception as lyr_err:
+                                logger.debug(f"Album track companion lyrics failed: {lyr_err}")
+
                             await self.media_service.tag_mp3(
                                 mp3_path=f_mp3,
                                 title=t_title,
@@ -495,6 +544,7 @@ class DownloadTaskManager:
                                 album=t_album,
                                 year=t_year,
                                 track_num=idx,
+                                lyrics=lyrics_text,
                                 cover_url=t_cover
                             )
                             downloaded_count += 1

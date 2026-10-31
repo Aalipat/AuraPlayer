@@ -255,14 +255,24 @@
       </div>
 
       <!-- Action Buttons Grid -->
-      <div class="pt-4 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="pt-4 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <!-- Download Music -->
         <button
           onclick="downloadSpotifyAudio()"
           class="py-3 px-4 rounded-xl bg-gradient-to-r from-sp to-emerald-600 hover:from-emerald-600 hover:to-sp text-slate-950 font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-sp/20 hover:scale-[1.01]"
         >
           <i class="fa-solid fa-circle-down text-base"></i>
-          <span>دانلود موزیک (MP3 <span id="btnQualityLabel">320kbps</span>)</span>
+          <span>دانلود موزیک (<span id="btnQualityLabel">320kbps</span>)</span>
+        </button>
+
+        <!-- Direct Download Lyrics (.lrc) -->
+        <button
+          onclick="downloadSpotifyLyrics()"
+          class="py-3 px-4 rounded-xl bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2"
+          title="دانلود فایل‌های .lrc هماهنگ و ترجمه فارسی در پوشه دانلودها"
+        >
+          <i class="fa-solid fa-download text-emerald-400 text-base"></i>
+          <span>دانلود فایل لیریکس (.lrc)</span>
         </button>
 
         <!-- View English Lyrics -->
@@ -271,7 +281,7 @@
           class="py-3 px-4 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 hover:border-slate-600"
         >
           <i class="fa-regular fa-file-lines text-amber-400 text-base"></i>
-          <span>متن ترانه (Synced Lyrics)</span>
+          <span>متن هماهنگ (Synced)</span>
         </button>
 
         <!-- Persian Translation -->
@@ -280,7 +290,7 @@
           class="py-3 px-4 rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2"
         >
           <i class="fa-solid fa-language text-cyan-400 text-base"></i>
-          <span>ترجمه فارسی روان ترانه</span>
+          <span>ترجمه فارسی ترانه</span>
         </button>
       </div>
     </div>
@@ -1253,6 +1263,9 @@
           </div>
           <div class="flex items-center gap-2 flex-shrink-0">
             <span class="font-mono text-slate-400 text-[11px]">${t.duration}</span>
+            <button onclick="downloadSingleTrackLyrics(${i})" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-medium text-[11px] transition flex items-center gap-1 border border-slate-700" title="دانلود فایل لیریکس این قطعه (.lrc)">
+              <i class="fa-regular fa-file-lines text-amber-400"></i> لیریکس
+            </button>
             <button onclick="downloadSingleCollectionTrack(${i})" class="px-2.5 py-1.5 rounded-lg bg-sp/20 hover:bg-sp text-sp hover:text-black font-bold text-[11px] transition flex items-center gap-1">
               <i class="fa-solid fa-download"></i> دانلود MP3
             </button>
@@ -1438,6 +1451,27 @@
         cover: currentMediaData.cover,
         duration_seconds: currentMediaData.duration_seconds
       });
+    }
+
+    async function downloadSpotifyLyrics() {
+      if (!currentMediaData) return;
+      await startDownload('spotify_lyrics', '', 'bilingual', {
+        title: currentMediaData.title,
+        artist: currentMediaData.artist,
+        duration_seconds: currentMediaData.duration_seconds
+      });
+      showToast('دانلود فایل‌های لیریکس (.lrc و ترجمه) به صف اضافه شد', 'info');
+    }
+
+    async function downloadSingleTrackLyrics(trackIndex) {
+      if (!currentMediaData || !currentMediaData.tracks) return;
+      const t = currentMediaData.tracks[trackIndex];
+      await startDownload('spotify_lyrics', '', 'bilingual', {
+        title: t.title,
+        artist: t.artist,
+        duration_seconds: t.duration_seconds || 0
+      });
+      showToast(`دانلود فایل‌های لیریکس «${t.title}» به صف اضافه شد`, 'info');
     }
 
     async function downloadSingleCollectionTrack(trackIndex) {

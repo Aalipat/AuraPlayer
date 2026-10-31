@@ -361,6 +361,20 @@ class SpotifyService:
                 except Exception as e:
                     logger.warning(f"LRCLIB search failed: {e}")
 
+        # Multi-provider fallback via syncedlyrics
+        if not (synced_lrc or plain_lyrics):
+            try:
+                import syncedlyrics
+                query = f"{artist_name} {track_name}".strip() or track_name
+                fallback = await asyncio.to_thread(
+                    syncedlyrics.search, query, providers=["NetEase", "Megalobiz", "Musixmatch"]
+                )
+                if fallback and fallback.strip():
+                    synced_lrc = fallback.strip()
+                    logger.info("Successfully fetched synced lyrics via fallback in spotify_service!")
+            except Exception as se:
+                logger.debug(f"syncedlyrics search failed in spotify_service: {se}")
+
         return {
             "has_lyrics": bool(synced_lrc or plain_lyrics),
             "is_synced": bool(synced_lrc),
