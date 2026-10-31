@@ -89,15 +89,30 @@ class SchedulerService:
         title: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Adds a download task item to the persistent queue."""
+        """Adds a download task item to the persistent queue with smart type detection."""
         cfg = self.load_config()
+        
+        # Smart action_type inference
+        clean_url = url.strip()
+        detected_type = type_
+        if "open.spotify.com" in clean_url:
+            if "/playlist/" in clean_url or "/album/" in clean_url:
+                detected_type = "spotify_batch"
+            else:
+                detected_type = "spotify_audio"
+        elif "youtube.com" in clean_url or "youtu.be" in clean_url:
+            if "list=" in clean_url and ("playlist" in clean_url or "watch" in clean_url):
+                detected_type = "youtube_batch"
+            elif type_ not in ("audio", "video", "subtitle"):
+                detected_type = "video"
+
         item = {
             "id": f"q_{uuid.uuid4().hex[:8]}",
-            "url": url,
-            "type": type_,
+            "url": clean_url,
+            "type": detected_type,
             "quality": quality or "720",
             "lang": lang or "fa",
-            "title": title or url,
+            "title": title or clean_url,
             "extra": extra or {},
             "status": "pending",  # pending, running, completed, error, cancelled
             "added_at": datetime.now().isoformat(),
@@ -119,6 +134,16 @@ class SchedulerService:
             return True
         return False
 
+    def clear_completed(self) -> int:
+        """Removes completed and errored items from the queue."""
+        cfg = self.load_config()
+        initial_len = len(cfg["items"])
+        cfg["items"] = [it for it in cfg["items"] if it.get("status") in ("pending", "running")]
+        removed = initial_len - len(cfg["items"])
+        if removed > 0:
+            self.save_config(cfg)
+        return removed
+
     def update_config(
         self,
         enabled: Optional[bool] = None,
@@ -139,6 +164,72 @@ class SchedulerService:
         self.save_config(cfg)
         return cfg
 
+    async def execute_item(self, item: Dict[str, Any], task_manager) -> None:
+        """Executes a single queue item via task_manager."""
+        cfg = self.load_config()
+        # Find item in fresh config
+        found = next((it for it in cfg.get("items", []) if it["id"] == item["id"]), None)
+        if not found or found.get("status") == "running":
+            return
+
+        found["status"] = "running"
+        self.save_config(cfg)
+
+        extra = dict(found.get("extra") or {})
+        bw_limit = cfg.get("bandwidth_limit_kbps", 0)
+        if bw_limit > 0:
+            extra["ratelimit_kbps"] = bw_limit
+
+        try:
+            tid = task_manager.create_task(
+                url=found["url"],
+                action_type=found["type"],
+                quality=found.get("quality", "720"),
+                lang=found.get("lang", "fa"),
+                extra=extra,
+            )
+            found["task_id"] = tid
+            self.save_config(cfg)
+
+            while True:
+                await asyncio.sleep(2)
+                t = task_manager.get_task(tid)
+                if not t or t.get("is_done"):
+                    cfg = self.load_config()
+                    target = next((it for it in cfg.get("items", []) if it["id"] == item["id"]), found)
+                    if t and t.get("error"):
+                        target["status"] = "error"
+                        target["error"] = t.get("error")
+                    else:
+                        target["status"] = "completed"
+                    target["completed_at"] = datetime.now().isoformat()
+                    self.save_config(cfg)
+                    break
+        except Exception as ex:
+            cfg = self.load_config()
+            target = next((it for it in cfg.get("items", []) if it["id"] == item["id"]), found)
+            target["status"] = "error"
+            target["error"] = str(ex)
+            self.save_config(cfg)
+
+    async def force_start_item(self, item_id: str, task_manager) -> bool:
+        """Starts downloading a specific queued item immediately."""
+        cfg = self.load_config()
+        item = next((it for it in cfg.get("items", []) if it["id"] == item_id), None)
+        if not item or item.get("status") == "running":
+            return False
+
+        asyncio.create_task(self.execute_item(item, task_manager))
+        return True
+
+    async def force_start_all(self, task_manager) -> int:
+        """Starts downloading all pending items immediately."""
+        cfg = self.load_config()
+        pending = [it for it in cfg.get("items", []) if it.get("status") == "pending"]
+        for it in pending:
+            asyncio.create_task(self.execute_item(it, task_manager))
+        return len(pending)
+
     async def start_background_loop(self, task_manager) -> None:
         """
         Background asyncio daemon that periodically checks the queue and executes
@@ -153,47 +244,13 @@ class SchedulerService:
                 is_enabled = cfg.get("schedule_enabled", False)
                 start_str = cfg.get("schedule_start", "02:00")
                 end_str = cfg.get("schedule_end", "07:00")
-                bw_limit = cfg.get("bandwidth_limit_kbps", 0)
 
                 if is_enabled and self.is_in_window(start_str, end_str):
                     pending = [it for it in cfg.get("items", []) if it.get("status") == "pending"]
                     if pending:
                         item = pending[0]
-                        logger.info(f"Scheduler triggered download for item {item['id']}: {item['url']}")
-                        item["status"] = "running"
-                        self.save_config(cfg)
-
-                        extra = dict(item.get("extra") or {})
-                        if bw_limit > 0:
-                            extra["ratelimit_kbps"] = bw_limit
-
-                        try:
-                            tid = task_manager.create_task(
-                                url=item["url"],
-                                action_type=item["type"],
-                                quality=item.get("quality", "720"),
-                                lang=item.get("lang", "fa"),
-                                extra=extra,
-                            )
-                            item["task_id"] = tid
-
-                            # Wait for task completion
-                            while True:
-                                await asyncio.sleep(2)
-                                t = task_manager.get_task(tid)
-                                if not t or t.get("is_done"):
-                                    if t and t.get("error"):
-                                        item["status"] = "error"
-                                        item["error"] = t.get("error")
-                                    else:
-                                        item["status"] = "completed"
-                                    item["completed_at"] = datetime.now().isoformat()
-                                    break
-                        except Exception as ex:
-                            item["status"] = "error"
-                            item["error"] = str(ex)
-
-                        self.save_config(cfg)
+                        logger.info(f"Scheduler triggered night download for {item['id']}: {item['url']}")
+                        await self.execute_item(item, task_manager)
 
             except Exception as e:
                 logger.error(f"Error in scheduler background loop: {e}", exc_info=True)

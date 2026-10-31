@@ -617,6 +617,32 @@ namespace YouTubeDownloaderApp
                             _miniPlayer.UpdatePlayState(playing);
                         }
                     }
+                    else if (data.StartsWith("progress|"))
+                    {
+                        if (_miniPlayer != null && !_miniPlayer.IsDisposed && _miniPlayer.Visible)
+                        {
+                            var parts = data.Substring("progress|".Length).Split('|');
+                            double cur = 0, tot = 0;
+                            foreach (var p in parts)
+                            {
+                                var kv = p.Split(new[] { '=' }, 2);
+                                if (kv.Length == 2)
+                                {
+                                    if (kv[0] == "current") double.TryParse(kv[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out cur);
+                                    else if (kv[0] == "total") double.TryParse(kv[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out tot);
+                                }
+                            }
+                            _miniPlayer.UpdateProgress(cur, tot);
+                        }
+                    }
+                    else if (data.StartsWith("volume|"))
+                    {
+                        if (_miniPlayer != null && !_miniPlayer.IsDisposed && _miniPlayer.Visible)
+                        {
+                            bool isMuted = data.Contains("muted=true");
+                            _miniPlayer.UpdateVolumeState(isMuted);
+                        }
+                    }
                     else if (data == "close")
                     {
                         if (_miniPlayer != null && !_miniPlayer.IsDisposed)

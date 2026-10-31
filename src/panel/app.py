@@ -269,6 +269,24 @@ async def update_queue_config(req: QueueConfigRequest):
     return {"success": True, "config": cfg}
 
 
+@app.post("/api/queue/start-now")
+async def start_queue_item_now(req: QueueRemoveRequest):
+    started = await scheduler_service.force_start_item(req.id, task_manager)
+    return {"success": started}
+
+
+@app.post("/api/queue/start-all")
+async def start_all_queue_items_now():
+    count = await scheduler_service.force_start_all(task_manager)
+    return {"success": True, "started_count": count}
+
+
+@app.post("/api/queue/clear-completed")
+async def clear_completed_queue():
+    cleared = scheduler_service.clear_completed()
+    return {"success": True, "cleared": cleared}
+
+
 @app.post("/api/spotify/lyrics")
 async def get_spotify_lyrics(req: SpotifyLyricsRequest):
     title = req.title

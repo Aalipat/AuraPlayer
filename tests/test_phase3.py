@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from src.panel.app import app
 from src.bot.config import settings
 from src.services.media import WaveformService
-from src.services.lyrics import LyricsService, parse_lrc
+from src.services.lyrics import LyricsService, parse_lrc, normalize_track_metadata
 from src.services.scheduler import SchedulerService
 from src.panel.tasks import _VIDEO_ID_PATTERN, _get_existing_video_ids, task_manager
 
@@ -244,3 +244,103 @@ def test_rate_limit_ydl_opts():
 
     opts_with_limit = task_manager._get_common_ydl_opts(out_tmpl="%(title)s.%(ext)s", ratelimit_kbps=500)
     assert opts_with_limit.get("ratelimit") == 500 * 1024
+
+# -------------------------------------------------------------
+# 5. Phase 3 Refinement Tests: Normalizer & Smart Queue Execution
+# -------------------------------------------------------------
+def test_normalize_track_metadata():
+    # Video ID removal and hyphen artist/title separation
+    t1, a1 = normalize_track_metadata("OneRepublic - Counting Stars [dQw4w9WgXcQ].mp3")
+    assert t1 == "Counting Stars"
+    assert a1 == "OneRepublic"
+
+    # Underscores and Official Video tags
+    t2, a2 = normalize_track_metadata("Coldplay_-_Yellow_(Official_Video)")
+    assert t2 == "Yellow"
+    assert a2 == "Coldplay"
+
+    # Title without artist separator
+    t3, a3 = normalize_track_metadata("Shape of You [Music Video]")
+    assert t3 == "Shape of You"
+    assert a3 == ""
+
+    # Explicit artist preserved if provided
+    t4, a4 = normalize_track_metadata("Bohemian Rhapsody [id123456789]", artist="Queen")
+    assert t4 == "Bohemian Rhapsody"
+    assert a4 == "Queen"
+
+def test_scheduler_smart_type_detection(tmp_path):
+    queue_file = tmp_path / "smart_queue.json"
+    service = SchedulerService(queue_file=queue_file)
+
+    # Spotify track -> spotify_audio
+    it_sp_track = service.add_item("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT", "audio")
+    assert it_sp_track["type"] == "spotify_audio"
+
+    # Spotify playlist -> spotify_batch
+    it_sp_plist = service.add_item("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M", "audio")
+    assert it_sp_plist["type"] == "spotify_batch"
+
+    # YouTube playlist -> youtube_batch
+    it_yt_plist = service.add_item("https://www.youtube.com/playlist?list=PLrAl5G_bB9c51234", "video")
+    assert it_yt_plist["type"] == "youtube_batch"
+
+    # Direct YouTube video -> preserves or defaults
+    it_yt_vid = service.add_item("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "video")
+    assert it_yt_vid["type"] == "video"
+
+def test_scheduler_clear_completed(tmp_path):
+    queue_file = tmp_path / "clear_queue.json"
+    service = SchedulerService(queue_file=queue_file)
+
+    it1 = service.add_item("https://example.com/1", "audio")
+    it2 = service.add_item("https://example.com/2", "audio")
+    it3 = service.add_item("https://example.com/3", "audio")
+
+    cfg = service.load_config()
+    cfg["items"][0]["status"] = "completed"
+    cfg["items"][1]["status"] = "error"
+    cfg["items"][2]["status"] = "pending"
+    service.save_config(cfg)
+
+    removed = service.clear_completed()
+    assert removed == 2
+
+    remaining = service.load_config()["items"]
+    assert len(remaining) == 1
+    assert remaining[0]["id"] == it3["id"]
+    assert remaining[0]["status"] == "pending"
+
+def test_queue_start_now_and_clear_endpoints():
+    # Add pending item to queue
+    add_res = client.post("/api/queue/add", json={
+        "url": "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT",
+        "type": "audio",
+        "quality": "320k"
+    })
+    assert add_res.status_code == 200
+    item = add_res.json()["item"]
+    assert item["type"] == "spotify_audio"
+    item_id = item["id"]
+
+    # Test start-now endpoint
+    with patch.object(SchedulerService, "force_start_item", return_value=True):
+        sn_res = client.post("/api/queue/start-now", json={"id": item_id})
+        assert sn_res.status_code == 200
+        assert sn_res.json()["success"] is True
+
+    # Test start-all endpoint
+    with patch.object(SchedulerService, "force_start_all", return_value=3):
+        sa_res = client.post("/api/queue/start-all")
+        assert sa_res.status_code == 200
+        assert sa_res.json()["started_count"] == 3
+
+    # Test clear-completed endpoint
+    with patch.object(SchedulerService, "clear_completed", return_value=2):
+        cc_res = client.post("/api/queue/clear-completed")
+        assert cc_res.status_code == 200
+        assert cc_res.json()["cleared"] == 2
+
+    # Cleanup item
+    client.post("/api/queue/remove", json={"id": item_id})
+
