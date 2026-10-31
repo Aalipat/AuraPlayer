@@ -344,3 +344,58 @@ def test_queue_start_now_and_clear_endpoints():
     # Cleanup item
     client.post("/api/queue/remove", json={"id": item_id})
 
+
+def test_lyrics_persian_companion_pairing():
+    media = settings.download_dir / "track_persian_test.mp3"
+    media.write_bytes(b"dummy")
+    lrc = settings.download_dir / "track_persian_test.lrc"
+    lrc.write_text("[00:05.00]Hello\n[00:10.00]World", encoding="utf-8")
+    fa_lrc = settings.download_dir / "track_persian_test_persian.lrc"
+    fa_lrc.write_text("[00:05.00]سلام\n[00:10.00]دنیا", encoding="utf-8")
+
+    try:
+        res = client.get(f"/api/media/lyrics?path={media.resolve()}")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["is_synced"] is True
+        assert len(data["lines"]) == 2
+        assert data["lines"][0]["text"] == "Hello"
+        assert data["lines"][0]["fa_text"] == "سلام"
+        assert data["lines"][1]["text"] == "World"
+        assert data["lines"][1]["fa_text"] == "دنیا"
+        assert len(data["persian_lines"]) == 2
+    finally:
+        for f in (media, lrc, fa_lrc):
+            if f.exists():
+                f.unlink()
+
+
+def test_unified_spotify_lyrics_endpoint():
+    dummy_lyrics = {
+        "success": True,
+        "has_lyrics": True,
+        "is_synced": True,
+        "clean_title": "Counting Stars",
+        "clean_artist": "OneRepublic",
+        "lines": [{"time": 5.0, "text": "Lately I been losing sleep", "fa_text": "اخیرا خواب از سرم پریده"}],
+        "plain_lyrics": "Lately I been losing sleep",
+        "synced_lyrics": "[00:05.00]Lately I been losing sleep",
+        "persian_lines": [{"time": 5.0, "text": "اخیرا خواب از سرم پریده"}],
+        "persian_plain": "اخیرا خواب از سرم پریده",
+        "persian_synced": "[00:05.00]اخیرا خواب از سرم پریده",
+        "bilingual": "[00:05.00]Lately I been losing sleep\n(اخیرا خواب از سرم پریده)"
+    }
+    with patch("src.services.lyrics.LyricsService.get_lyrics", return_value=dummy_lyrics):
+        res = client.post("/api/spotify/lyrics", json={
+            "url": "",
+            "title": "OneRepublic_-_Counting_Stars [Official Video]",
+            "artist": "OneRepublic",
+            "duration": 257
+        })
+        assert res.status_code == 200
+        data = res.json()
+        assert data["has_lyrics"] is True
+        assert data["clean_title"] == "Counting Stars"
+        assert data["lines"][0]["fa_text"] == "اخیرا خواب از سرم پریده"
+        assert data["persian_plain"] == "اخیرا خواب از سرم پریده"
+

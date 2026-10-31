@@ -289,24 +289,28 @@ async def clear_completed_queue():
 
 @app.post("/api/spotify/lyrics")
 async def get_spotify_lyrics(req: SpotifyLyricsRequest):
-    title = req.title
-    artist = req.artist
+    title = req.title or ""
+    artist = req.artist or ""
     duration = req.duration or 0
 
     if req.url and (not title or not artist):
         try:
-            meta = await spotify_service.get_metadata(req.url)
-            title = meta.get("title")
-            artist = meta.get("artist")
-            duration = meta.get("duration_seconds", 0)
+            if "spotify.com" in req.url:
+                meta = await spotify_service.get_metadata(req.url)
+                title = meta.get("title", "")
+                artist = meta.get("artist", "")
+                duration = meta.get("duration_seconds", 0)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"خطا در خواندن اطلاعات قطعه: {e}")
-
-    if not title or not artist:
-        raise HTTPException(status_code=400, detail="نام ترانه و خواننده مشخص نیست.")
+            logger.debug(f"Spotify metadata fetch error in lyrics endpoint: {e}")
 
     try:
-        lyrics_data = await spotify_service.get_lyrics(title, artist, duration)
+        lyrics_data = await lyrics_service.get_lyrics(
+            media_path=None,
+            title=title,
+            artist=artist,
+            duration=duration,
+            include_translation=True
+        )
         if not lyrics_data.get("has_lyrics"):
             return {
                 "success": False,
@@ -314,21 +318,7 @@ async def get_spotify_lyrics(req: SpotifyLyricsRequest):
                 "message": "متن ترانه در دیتابیس لیریکس یافت نشد."
             }
 
-        trans = await spotify_service.translate_lyrics_to_persian(
-            lyrics_data.get("synced_lyrics", ""),
-            lyrics_data.get("plain_lyrics", "")
-        )
-
-        return {
-            "success": True,
-            "has_lyrics": True,
-            "is_synced": lyrics_data.get("is_synced", False),
-            "synced_lyrics": lyrics_data.get("synced_lyrics", ""),
-            "plain_lyrics": lyrics_data.get("plain_lyrics", ""),
-            "persian_synced": trans.get("persian_synced", ""),
-            "persian_plain": trans.get("persian_plain", ""),
-            "bilingual": trans.get("bilingual", ""),
-        }
+        return lyrics_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"خطا در واکشی متن ترانه: {e}")
 

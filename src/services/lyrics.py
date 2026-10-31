@@ -118,6 +118,27 @@ class LyricsService:
         cache_hash = hashlib.sha256(key.encode("utf-8")).hexdigest()
         return LYRICS_CACHE_DIR / f"{cache_hash}.json"
 
+    @staticmethod
+    def _pair_fa_lines(lines: List[Dict[str, Any]], fa_lines: List[Dict[str, Any]]):
+        """Attaches fa_text to each line in lines by matching timestamps or index."""
+        if not lines or not fa_lines:
+            return
+        if len(lines) == len(fa_lines):
+            for i in range(len(lines)):
+                lines[i]["fa_text"] = fa_lines[i].get("text", "")
+            return
+
+        for line in lines:
+            t = line.get("time", 0.0)
+            closest_text = ""
+            min_diff = 2.0
+            for fa in fa_lines:
+                diff = abs(fa.get("time", 0.0) - t)
+                if diff < min_diff:
+                    min_diff = diff
+                    closest_text = fa.get("text", "")
+            line["fa_text"] = closest_text
+
     @classmethod
     async def get_lyrics(
         cls,
@@ -126,21 +147,36 @@ class LyricsService:
         artist: str = "",
         album: str = "",
         duration: float = 0.0,
+        include_translation: bool = True,
     ) -> Dict[str, Any]:
         """
         Retrieves synced or plain lyrics for a track:
-        1. Checks local .lrc companion file next to media_path
+        1. Checks local .lrc and _persian.lrc companion files next to media_path
         2. Normalizes title & artist metadata
         3. Checks persistent cache in data/.cache/lyrics/
         4. Multi-tier LRCLIB API querying
+        5. Automatically loads or translates Persian synced lyrics
         """
         # 1. Local .lrc file check
         if media_path and media_path.exists() and media_path.is_file():
             companion_lrc = media_path.with_suffix(".lrc")
+            companion_fa = media_path.with_name(f"{media_path.stem}_persian.lrc")
+            if not companion_fa.exists():
+                companion_fa = media_path.with_name(f"{media_path.stem}_fa.lrc")
+
             if companion_lrc.exists() and companion_lrc.stat().st_size > 0:
                 try:
                     content = companion_lrc.read_text(encoding="utf-8", errors="ignore")
                     lines = parse_lrc(content)
+                    fa_lines: List[Dict[str, Any]] = []
+                    fa_synced = ""
+                    fa_plain = ""
+                    if companion_fa.exists() and companion_fa.stat().st_size > 0:
+                        fa_synced = companion_fa.read_text(encoding="utf-8", errors="ignore")
+                        fa_lines = parse_lrc(fa_synced)
+                        fa_plain = "\n".join(l["text"] for l in fa_lines if l.get("text"))
+                        cls._pair_fa_lines(lines, fa_lines)
+
                     if lines:
                         return {
                             "success": True,
@@ -151,6 +187,11 @@ class LyricsService:
                             "clean_artist": artist,
                             "lines": lines,
                             "plain_lyrics": "\n".join(l["text"] for l in lines if l["text"]),
+                            "synced_lyrics": content,
+                            "persian_lines": fa_lines,
+                            "persian_synced": fa_synced,
+                            "persian_plain": fa_plain,
+                            "bilingual": "",
                         }
                 except Exception as e:
                     logger.debug(f"Failed to read local .lrc: {e}")
@@ -169,6 +210,11 @@ class LyricsService:
                 "clean_artist": "",
                 "lines": [],
                 "plain_lyrics": "",
+                "synced_lyrics": "",
+                "persian_lines": [],
+                "persian_synced": "",
+                "persian_plain": "",
+                "bilingual": "",
             }
 
         # 3. Disk Cache check
@@ -240,6 +286,25 @@ class LyricsService:
         parsed_lines = parse_lrc(synced_lrc) if synced_lrc else []
         is_synced = len(parsed_lines) > 0
 
+        # 5. Persian Translation if available / requested
+        fa_lines: List[Dict[str, Any]] = []
+        persian_synced = ""
+        persian_plain = ""
+        bilingual = ""
+
+        if include_translation and (synced_lrc or plain_lrc):
+            try:
+                from src.services.spotify import spotify_service
+                trans = await spotify_service.translate_lyrics_to_persian(synced_lrc, plain_lrc)
+                persian_synced = trans.get("persian_synced", "")
+                persian_plain = trans.get("persian_plain", "")
+                bilingual = trans.get("bilingual", "")
+                if persian_synced:
+                    fa_lines = parse_lrc(persian_synced)
+                    cls._pair_fa_lines(parsed_lines, fa_lines)
+            except Exception as e:
+                logger.debug(f"Translation step skipped or failed: {e}")
+
         result = {
             "success": bool(synced_lrc or plain_lrc),
             "has_lyrics": bool(synced_lrc or plain_lrc),
@@ -249,6 +314,11 @@ class LyricsService:
             "clean_artist": clean_artist,
             "lines": parsed_lines,
             "plain_lyrics": plain_lrc or ("\n".join(l["text"] for l in parsed_lines if l["text"])),
+            "synced_lyrics": synced_lrc,
+            "persian_lines": fa_lines,
+            "persian_synced": persian_synced,
+            "persian_plain": persian_plain,
+            "bilingual": bilingual,
         }
 
         # Cache result only if lyrics were found

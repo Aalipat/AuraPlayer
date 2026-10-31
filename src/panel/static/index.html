@@ -556,7 +556,7 @@
   </main>
 
   <!-- LYRICS MODAL (EN, Persian, Bilingual) -->
-  <div id="lyricsModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+  <div id="trackDetailLyricsModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
     <div class="glass max-w-3xl w-full rounded-2xl p-6 space-y-4 max-h-[90vh] flex flex-col border border-emerald-500/30 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <div>
@@ -838,6 +838,21 @@
       </div>
     </div>
 
+    <!-- Lyrics Language Toggle (Sidebar) -->
+    <div class="relative z-10 px-3 py-1.5 bg-slate-900/40 border-b border-slate-800/60 flex items-center justify-center">
+      <div class="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800/80 text-[11px] w-full">
+        <button id="sidebarLangBi" onclick="setLiveLyricsLang('bi')" class="flex-1 py-1 rounded-lg font-bold transition bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          دوزبانه
+        </button>
+        <button id="sidebarLangFa" onclick="setLiveLyricsLang('fa')" class="flex-1 py-1 rounded-lg font-medium transition text-slate-400 hover:text-white">
+          فارسی (FA)
+        </button>
+        <button id="sidebarLangEn" onclick="setLiveLyricsLang('en')" class="flex-1 py-1 rounded-lg font-medium transition text-slate-400 hover:text-white">
+          اصلی (EN)
+        </button>
+      </div>
+    </div>
+
     <!-- Lyrics Scroll Container -->
     <div id="lyricsSidebarScrollContainer" class="relative z-10 flex-1 overflow-y-auto p-4 space-y-3.5 text-center scroll-smooth custom-scroll">
       <div id="lyricsSidebarSpinner" class="flex flex-col items-center justify-center h-full text-slate-400 gap-2.5 py-14">
@@ -863,7 +878,13 @@
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <span id="lyricsBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Synced Lyrics</span>
+          <!-- Lyrics Language Toggle (Modal) -->
+          <div class="flex items-center gap-1 bg-slate-800/90 p-0.5 rounded-lg border border-slate-700/60 text-xs">
+            <button id="modalLangBi" onclick="setLiveLyricsLang('bi')" class="px-2 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition">دوزبانه</button>
+            <button id="modalLangFa" onclick="setLiveLyricsLang('fa')" class="px-2 py-0.5 rounded font-medium text-slate-400 hover:text-white transition">فارسی</button>
+            <button id="modalLangEn" onclick="setLiveLyricsLang('en')" class="px-2 py-0.5 rounded font-medium text-slate-400 hover:text-white transition">EN</button>
+          </div>
+          <span id="lyricsBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">Synced</span>
           <button onclick="toggleLyricsModal()" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition">
             <i class="fa-solid fa-xmark text-sm"></i>
           </button>
@@ -1726,11 +1747,12 @@
     }
 
     // -------------------------------------------------------------
-    // Lyrics Modal
+    // Track Detail Lyrics Modal
     // -------------------------------------------------------------
     async function openLyricsModal(preferredTab) {
       if (!currentMediaData) return;
-      document.getElementById('lyricsModal').classList.remove('hidden');
+      const modal = document.getElementById('trackDetailLyricsModal');
+      if (modal) modal.classList.remove('hidden');
       document.getElementById('lyricsModalSongTitle').textContent = currentMediaData.title;
       document.getElementById('lyricsModalArtist').textContent = currentMediaData.artist;
 
@@ -1738,15 +1760,16 @@
       area.textContent = 'در حال جستجو و ترجمه خط‌به‌خط لیریکس از دیتابیس...';
 
       try {
+        const payload = {
+          url: currentUrl || '',
+          title: currentMediaData.title || '',
+          artist: currentMediaData.artist || '',
+          duration: currentMediaData.duration_seconds || 0
+        };
         const res = await fetch('/api/spotify/lyrics', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            url: currentUrl,
-            title: currentMediaData.title,
-            artist: currentMediaData.artist,
-            duration: currentMediaData.duration_seconds || 0
-          })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!res.ok || !data.has_lyrics) {
@@ -1754,9 +1777,13 @@
           return;
         }
 
-        currentLyricsData.fa = data.persian_synced || data.persian_plain;
-        currentLyricsData.en = data.synced_lyrics || data.plain_lyrics;
+        currentLyricsData.fa = data.persian_plain || data.persian_synced;
+        currentLyricsData.en = data.plain_lyrics || data.synced_lyrics;
         currentLyricsData.bi = data.bilingual;
+
+        if (!currentLyricsData.bi && data.lines && data.lines.length) {
+          currentLyricsData.bi = data.lines.map(l => l.text + (l.fa_text ? '\n   (' + l.fa_text + ')' : '')).join('\n');
+        }
 
         switchLyricsTab(preferredTab || 'fa');
       } catch (err) {
@@ -1772,23 +1799,24 @@
       const area = document.getElementById('lyricsContentArea');
 
       [tFa, tEn, tBi].forEach(btn => {
-        btn.className = 'flex-1 py-2 rounded-lg font-medium text-slate-400 hover:text-white transition';
+        if (btn) btn.className = 'flex-1 py-2 rounded-lg font-medium text-slate-400 hover:text-white transition';
       });
 
       if (tab === 'fa') {
-        tFa.className = 'flex-1 py-2 rounded-lg font-bold transition bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+        if (tFa) tFa.className = 'flex-1 py-2 rounded-lg font-bold transition bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
         area.textContent = currentLyricsData.fa || 'ترجمه فارسی موجود نیست.';
       } else if (tab === 'en') {
-        tEn.className = 'flex-1 py-2 rounded-lg font-bold transition bg-amber-500/20 text-amber-300 border border-amber-500/30';
+        if (tEn) tEn.className = 'flex-1 py-2 rounded-lg font-bold transition bg-amber-500/20 text-amber-300 border border-amber-500/30';
         area.textContent = currentLyricsData.en || 'متن انگلیسی موجود نیست.';
       } else if (tab === 'bi') {
-        tBi.className = 'flex-1 py-2 rounded-lg font-bold transition bg-indigo-500/20 text-indigo-300 border border-indigo-500/30';
+        if (tBi) tBi.className = 'flex-1 py-2 rounded-lg font-bold transition bg-indigo-500/20 text-indigo-300 border border-indigo-500/30';
         area.textContent = currentLyricsData.bi || 'متن دوزبانه موجود نیست.';
       }
     }
 
     function closeLyricsModal() {
-      document.getElementById('lyricsModal').classList.add('hidden');
+      const modal = document.getElementById('trackDetailLyricsModal');
+      if (modal) modal.classList.add('hidden');
     }
 
     function copyLyricsText() {
@@ -2903,7 +2931,7 @@
           toggleLyricsSidebar();
           return;
         }
-        const modals = ['lyricsModal', 'queueModal', 'folderModal', 'proxyModal', 'subModal'];
+        const modals = ['lyricsModal', 'trackDetailLyricsModal', 'queueModal', 'folderModal', 'proxyModal', 'subModal'];
         const openModal = modals.map(id => document.getElementById(id)).find(el => el && !el.classList.contains('hidden'));
         if (openModal) {
           openModal.classList.add('hidden');
@@ -3057,6 +3085,37 @@
       }
     }
 
+    let liveLyricsMode = localStorage.getItem('preferred_lyrics_mode') || 'bi';
+
+    function setLiveLyricsLang(mode) {
+      liveLyricsMode = mode;
+      localStorage.setItem('preferred_lyrics_mode', mode);
+      updateLiveLyricsPillUI();
+      if (activeKaraokeLyrics) {
+        renderLyricsContent(activeKaraokeLyrics);
+      }
+    }
+
+    function updateLiveLyricsPillUI() {
+      const modes = ['bi', 'fa', 'en'];
+      modes.forEach(m => {
+        const cap = m.charAt(0).toUpperCase() + m.slice(1);
+        const sideBtn = document.getElementById(`sidebarLang${cap}`);
+        const modBtn = document.getElementById(`modalLang${cap}`);
+        const isActive = (liveLyricsMode === m);
+        if (sideBtn) {
+          sideBtn.className = isActive
+            ? 'flex-1 py-1 rounded-lg font-bold transition bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+            : 'flex-1 py-1 rounded-lg font-medium transition text-slate-400 hover:text-white';
+        }
+        if (modBtn) {
+          modBtn.className = isActive
+            ? 'px-2 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition'
+            : 'px-2 py-0.5 rounded font-medium text-slate-400 hover:text-white transition';
+        }
+      });
+    }
+
     function renderLyricsContent(data) {
       const spinner = document.getElementById('lyricsLoadingSpinner');
       const listEl = document.getElementById('lyricsContentList');
@@ -3068,6 +3127,8 @@
       if (sideSpinner) sideSpinner.classList.add('hidden');
       if (sideListEl) sideListEl.classList.remove('hidden');
 
+      updateLiveLyricsPillUI();
+
       if (!data || !data.has_lyrics) {
         const emptyMsg = '<div class="text-slate-500 py-16 text-sm">متن ترانه برای این آهنگ یافت نشد.</div>';
         const emptySideMsg = '<div class="text-slate-500 py-14 text-xs">متن ترانه برای این آهنگ یافت نشد.</div>';
@@ -3077,25 +3138,46 @@
       }
 
       if (data.is_synced && data.lines && data.lines.length > 0) {
+        const renderLineHtml = (l, isSide) => {
+          const enText = escapeHtml(l.text || '');
+          const faText = escapeHtml(l.fa_text || '');
+
+          if (liveLyricsMode === 'fa') {
+            return `<div class="text-emerald-400 font-sans leading-relaxed">${faText || enText || '...'}</div>`;
+          } else if (liveLyricsMode === 'en') {
+            return `<div class="leading-relaxed">${enText || '...'}</div>`;
+          } else {
+            // Bilingual
+            if (faText && faText !== enText) {
+              const faClass = isSide ? 'text-[11px] text-emerald-300/90 font-sans mt-0.5' : 'text-xs sm:text-sm text-emerald-300 font-sans mt-1';
+              return `<div class="leading-snug">${enText || '...'}</div><div class="${faClass}">${faText}</div>`;
+            }
+            return `<div class="leading-relaxed">${enText || '...'}</div>`;
+          }
+        };
+
         if (listEl) {
           listEl.innerHTML = data.lines.map((l, i) => `
             <div id="lyric-line-${i}" onclick="seekToLyricTime(${l.time})" data-time="${l.time}" class="lyric-line py-2.5 px-4 rounded-xl cursor-pointer text-slate-400 text-base sm:text-lg hover:text-slate-200 transition-all duration-200 hover:scale-[1.02]">
-              ${escapeHtml(l.text || '...')}
+              ${renderLineHtml(l, false)}
             </div>
           `).join('');
         }
         if (sideListEl) {
           sideListEl.innerHTML = data.lines.map((l, i) => `
             <div id="sidebar-lyric-${i}" onclick="seekToLyricTime(${l.time})" data-time="${l.time}" class="sidebar-lyric-line py-2 px-3 rounded-lg cursor-pointer text-slate-400 text-xs sm:text-sm hover:text-slate-200 transition-all duration-200 hover:bg-slate-900/60 leading-relaxed">
-              ${escapeHtml(l.text || '...')}
+              ${renderLineHtml(l, true)}
             </div>
           `).join('');
         }
         activeLyricIndex = -1;
         syncLyricsWithAudio(bottomAudio.currentTime);
-      } else if (data.plain_lyrics) {
-        const plainHtml = `<div class="text-slate-300 text-sm sm:text-base leading-relaxed whitespace-pre-line py-8">${escapeHtml(data.plain_lyrics)}</div>`;
-        const plainSideHtml = `<div class="text-slate-300 text-xs sm:text-sm leading-relaxed whitespace-pre-line py-4 px-1">${escapeHtml(data.plain_lyrics)}</div>`;
+      } else if (data.plain_lyrics || data.persian_plain) {
+        let txt = data.plain_lyrics;
+        if (liveLyricsMode === 'fa' && data.persian_plain) txt = data.persian_plain;
+        else if (liveLyricsMode === 'bi' && data.bilingual) txt = data.bilingual;
+        const plainHtml = `<div class="text-slate-300 text-sm sm:text-base leading-relaxed whitespace-pre-line py-8">${escapeHtml(txt)}</div>`;
+        const plainSideHtml = `<div class="text-slate-300 text-xs sm:text-sm leading-relaxed whitespace-pre-line py-4 px-1">${escapeHtml(txt)}</div>`;
         if (listEl) listEl.innerHTML = plainHtml;
         if (sideListEl) sideListEl.innerHTML = plainSideHtml;
       }

@@ -9,6 +9,7 @@
     <ApplicationIcon>..\..\..\app_icon.ico</ApplicationIcon>
     <AssemblyName>YouTube_Downloader</AssemblyName>
     <TargetName>YouTube_Downloader</TargetName>
+    <NoWarn>$(NoWarn);WFO1000;MSB3277</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
