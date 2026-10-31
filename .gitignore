@@ -1,0 +1,62 @@
+# =============================================================================
+# YouTube & Spotify Downloader - Security & Clean Git Ignore
+# =============================================================================
+
+# --- Environment & Sensitive Credentials ---
+.env
+*.env.local
+*.env.*.local
+
+# --- Embedded Python Runtime & Heavy Binaries ---
+/runtime/
+/bin/ffmpeg.exe
+/bin/ffprobe.exe
+/YouTube_Downloader.exe
+/WebView2Loader.dll
+/build_out/
+/dist/
+*.zip
+*.tar.gz
+
+# --- User Data, Logs, & Downloads ---
+/data/downloads/*
+!/data/downloads/.gitkeep
+/data/transcripts/*
+!/data/transcripts/.gitkeep
+/data/.cache/
+/data/server.log
+/data/user_settings.json
+*.log
+
+# --- Python Bytecode & Environments ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# --- .NET Build Output & Cache ---
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# --- Testing & QA Cache ---
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# --- IDE & OS Metadata ---
+.idea/
+.vscode/
+*.swp
+*.swo
+Thumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/

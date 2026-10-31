@@ -1,0 +1,2655 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube & Spotify Downloader | پنل دانلود یوتیوب و اسپاتیفای</title>
+  <link rel="icon" type="image/png" href="/static/logo.png">
+  <script src="/static/js/tailwind.js"></script>
+  <link rel="stylesheet" href="/static/css/all.min.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            yt: '#FF0033',
+            sp: '#1DB954',
+            dark: '#0F172A',
+            card: '#1E293B',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @font-face {
+      font-family: 'Vazirmatn';
+      src: url('/static/fonts/Vazirmatn-Regular.woff2') format('woff2');
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Vazirmatn';
+      src: url('/static/fonts/Vazirmatn-Bold.woff2') format('woff2');
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+    body { font-family: 'Vazirmatn', -apple-system, sans-serif; }
+    .glass { background: rgba(30, 41, 59, 0.75); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .progress-bar-animated {
+      background-size: 30px 30px;
+      background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+      animation: progress-move 2s linear infinite;
+    }
+    @keyframes progress-move { 0% { background-position: 0 0; } 100% { background-position: 60px 0; } }
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.5); border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.8); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-sp selection:text-white">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800/80 glass sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="relative">
+          <img src="/static/logo.png" alt="Logo" class="w-10 h-10 rounded-xl object-cover shadow-lg border border-slate-700">
+          <span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-sp flex items-center justify-center text-[9px] text-black font-bold">
+            <i class="fa-brands fa-spotify"></i>
+          </span>
+        </div>
+        <div>
+          <h1 class="font-bold text-base sm:text-lg leading-tight flex items-center gap-2">
+            <span>Media Downloader</span>
+            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">YouTube</span>
+            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Spotify</span>
+          </h1>
+          <p class="text-xs text-slate-400">دانلودر تخصصی ویدیو، صوت ۳۲۰kbps و لیریکس ترجمه‌شده</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Proxy / Network Status Badge -->
+        <button onclick="openProxyModal()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-medium transition border border-slate-700 shadow-sm" title="تنظیمات پروکسی و شبکه">
+          <span id="proxyDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+          <span id="proxyStatusText" class="truncate max-w-[110px] sm:max-w-[170px]">در حال بررسی شبکه...</span>
+          <i class="fa-solid fa-sliders text-slate-400 text-xs ml-0.5"></i>
+        </button>
+
+        <!-- Choose Folder Button -->
+        <button onclick="openFolderModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium transition border border-slate-700 shadow-sm hover:border-slate-600" title="تغییر محل ذخیره آهنگ‌ها و ویدیوها">
+          <i class="fa-solid fa-folder-gear text-indigo-400"></i>
+          <span id="folderBtnLabel" class="truncate max-w-[90px] sm:max-w-[140px]">پوشه ذخیره</span>
+        </button>
+
+        <!-- Open Folder Button -->
+        <button id="btnHeaderOpenFolder" onclick="openDownloadFolder(null, this)" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium transition border border-slate-700 shadow-sm hover:border-slate-600 active:scale-95" title="باز کردن پوشه دانلودها در فایل اکسپلورر ویندوز">
+          <i class="fa-regular fa-folder-open text-amber-400"></i>
+          <span class="hidden sm:inline">پوشه دانلودها</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-5xl mx-auto px-4 py-8 flex-1 w-full space-y-6">
+
+    <!-- Hero Input Card -->
+    <div class="glass rounded-2xl p-6 shadow-2xl relative overflow-hidden border border-slate-800">
+      <div class="absolute -top-24 -left-24 w-64 h-64 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-24 -right-24 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="relative z-10 space-y-4">
+        <div class="text-center max-w-xl mx-auto space-y-1">
+          <h2 class="text-2xl font-black text-white flex items-center justify-center gap-2">
+            لینک یوتیوب یا اسپاتیفای را وارد کنید
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-400">
+            پشتیبانی از موزیک، آلبوم، پلی‌لیست و لیریکس اسپاتیفای + ویدیوها و زیرنویس‌های یوتیوب
+          </p>
+        </div>
+
+        <form id="urlForm" onsubmit="fetchMediaInfo(event)" class="flex flex-col sm:flex-row gap-3">
+          <div class="relative flex-1">
+            <!-- Dynamic Icon (changes between YouTube and Spotify based on input) -->
+            <span id="inputIconWrapper" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg transition">
+              <i id="inputIcon" class="fa-solid fa-link"></i>
+            </span>
+            <input
+              type="text"
+              id="urlInput"
+              oninput="handleUrlInputChange()"
+              placeholder="لینک یوتیوب یا اسپاتیفای (Track / Album / Playlist) را اینجا پیست کنید..."
+              dir="ltr"
+              required
+              class="w-full pl-24 pr-12 py-3.5 bg-slate-900/90 rounded-xl border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition text-sm"
+            >
+            <button
+              type="button"
+              onclick="pasteClipboard()"
+              class="absolute left-2.5 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition"
+            >
+              <i class="fa-regular fa-paste ml-1"></i> چسباندن
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            id="submitBtn"
+            class="px-6 py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-rose-600 hover:opacity-90 text-white font-bold rounded-xl transition shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+          >
+            <span id="btnText">بررسی و استخراج</span>
+            <i id="btnSpinner" class="fa-solid fa-spinner fa-spin hidden"></i>
+          </button>
+        </form>
+
+        <!-- Quick Platform Badges -->
+        <div class="flex items-center justify-center gap-4 text-xs text-slate-400 pt-1">
+          <span class="flex items-center gap-1.5"><i class="fa-brands fa-spotify text-sp text-sm"></i> اسپاتیفای: ترک، آلبوم، پلی‌لیست</span>
+          <span class="text-slate-600">•</span>
+          <span class="flex items-center gap-1.5"><i class="fa-brands fa-youtube text-yt text-sm"></i> یوتیوب: ویدیو، Shorts، صوتی</span>
+          <span class="text-slate-600">•</span>
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-closed-captioning text-cyan-400"></i> لیریکس هماهنگ و ترجمه فارسی</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Downloads Queue Container (Supports Multiple Concurrent Downloads) -->
+    <div id="activeTasksSection" class="hidden glass rounded-2xl p-5 border border-emerald-500/30 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-cloud-arrow-down text-emerald-400"></i>
+          <span>دانلودهای فعال و صف پردازش</span>
+          <span id="activeTasksCountBadge" class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-mono font-bold">۰</span>
+        </h3>
+        <button onclick="clearCompletedTasks()" class="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium transition flex items-center gap-1.5 border border-slate-700/60" title="حذف کارت‌های تکمیل‌شده از صف">
+          <i class="fa-solid fa-broom text-slate-400"></i>
+          <span>پاکسازی تکمیل‌شده‌ها</span>
+        </button>
+      </div>
+
+      <!-- Dynamically rendered list of all concurrent download cards -->
+      <div id="activeTasksList" class="space-y-3">
+        <!-- Injected dynamically -->
+      </div>
+    </div>
+
+    <!-- SPOTIFY TRACK CARD -->
+    <div id="spotifyTrackCard" class="hidden glass rounded-2xl p-6 shadow-xl space-y-6 border border-emerald-500/30">
+      <div class="flex flex-col sm:flex-row gap-6">
+        <!-- 640x640 Cover Art -->
+        <div class="relative w-full sm:w-56 h-56 rounded-2xl overflow-hidden bg-slate-900 border border-slate-700/80 flex-shrink-0 shadow-2xl group">
+          <img id="spTrackCover" src="" alt="Album Cover" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+          <span class="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md text-sp font-bold text-[11px] flex items-center gap-1 border border-sp/30">
+            <i class="fa-brands fa-spotify"></i> Spotify
+          </span>
+          <span id="spTrackDuration" class="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 text-white font-mono text-xs font-semibold">00:00</span>
+        </div>
+
+        <!-- Details -->
+        <div class="flex-1 space-y-3 flex flex-col justify-between">
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold">
+                قطعه رسمی اسپاتیفای
+              </span>
+              <span id="spTrackYearBadge" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[11px] font-mono">
+                1987
+              </span>
+            </div>
+            <h3 id="spTrackTitle" class="text-xl sm:text-2xl font-black text-white leading-tight">نام ترانه</h3>
+            <p id="spTrackArtist" class="text-sm sm:text-base text-slate-300 font-semibold flex items-center gap-2">
+              <i class="fa-solid fa-user-music text-sp"></i>
+              <span>نام خواننده</span>
+            </p>
+            <p id="spTrackAlbum" class="text-xs text-slate-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-compact-disc text-slate-500"></i>
+              <span>آلبوم: نام آلبوم</span>
+            </p>
+          </div>
+
+          <!-- Quality selector and Badges -->
+          <div class="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-2">
+              <span class="text-slate-400 font-medium">کیفیت صوت:</span>
+              <div class="flex items-center bg-slate-900 rounded-lg p-1 border border-slate-700">
+                <button type="button" id="btnQ320" onclick="setSpotifyQuality('320')" class="px-3 py-1 rounded-md bg-sp text-black font-bold text-xs transition">
+                  320 kbps (HQ)
+                </button>
+                <button type="button" id="btnQ192" onclick="setSpotifyQuality('192')" class="px-3 py-1 rounded-md text-slate-300 font-medium text-xs hover:text-white transition">
+                  192 kbps
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-1 rounded bg-slate-800/80 text-slate-300 border border-slate-700 text-[11px]">
+                <i class="fa-solid fa-shield-check text-emerald-400 ml-1"></i> تگ‌گذاری کامل ID3
+              </span>
+              <span class="px-2 py-1 rounded bg-slate-800/80 text-slate-300 border border-slate-700 text-[11px]">
+                <i class="fa-solid fa-image text-cyan-400 ml-1"></i> کاور اورجینال ۶۴۰×۶۴۰
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons Grid -->
+      <div class="pt-4 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <!-- Download Music -->
+        <button
+          onclick="downloadSpotifyAudio()"
+          class="py-3 px-4 rounded-xl bg-gradient-to-r from-sp to-emerald-600 hover:from-emerald-600 hover:to-sp text-slate-950 font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-sp/20 hover:scale-[1.01]"
+        >
+          <i class="fa-solid fa-circle-down text-base"></i>
+          <span>دانلود موزیک (MP3 <span id="btnQualityLabel">320kbps</span>)</span>
+        </button>
+
+        <!-- View English Lyrics -->
+        <button
+          onclick="openLyricsModal('en')"
+          class="py-3 px-4 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 hover:border-slate-600"
+        >
+          <i class="fa-regular fa-file-lines text-amber-400 text-base"></i>
+          <span>متن ترانه (Synced Lyrics)</span>
+        </button>
+
+        <!-- Persian Translation -->
+        <button
+          onclick="openLyricsModal('fa')"
+          class="py-3 px-4 rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2"
+        >
+          <i class="fa-solid fa-language text-cyan-400 text-base"></i>
+          <span>ترجمه فارسی روان ترانه</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- SPOTIFY ALBUM / PLAYLIST CARD -->
+    <div id="spotifyCollectionCard" class="hidden glass rounded-2xl p-6 shadow-xl space-y-6 border border-emerald-500/30">
+      <div class="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+        <div class="w-40 h-40 rounded-2xl overflow-hidden bg-slate-900 border border-slate-700 flex-shrink-0 shadow-2xl">
+          <img id="spColCover" src="" alt="Collection Cover" class="w-full h-full object-cover">
+        </div>
+
+        <div class="flex-1 space-y-2 text-center sm:text-right">
+          <div class="flex items-center justify-center sm:justify-start gap-2">
+            <span id="spColTypeBadge" class="px-2.5 py-0.5 rounded-full bg-sp/10 text-sp border border-sp/20 text-xs font-bold">
+              آلبوم اسپاتیفای
+            </span>
+            <span id="spColTrackCountBadge" class="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-xs font-mono">
+              0 قطعه
+            </span>
+          </div>
+          <h3 id="spColTitle" class="text-2xl font-black text-white">نام آلبوم / پلی‌لیست</h3>
+          <p id="spColArtist" class="text-sm text-slate-300 font-medium">سازنده یا هنرمند</p>
+          <p class="text-xs text-slate-400">می‌توانید هر قطعه را به صورت تکی دانلود کنید یا تمام آلبوم را به صورت یکجا در صف دانلود قرار دهید.</p>
+        </div>
+
+        <div class="flex flex-col gap-2 w-full sm:w-auto">
+          <button
+            onclick="downloadSpotifyBatch()"
+            class="py-3 px-5 rounded-xl bg-gradient-to-r from-sp to-emerald-600 hover:from-emerald-600 hover:to-sp text-black font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-sp/20"
+          >
+            <i class="fa-solid fa-download"></i>
+            <span>دانلود تمام قطعات آلبوم</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tracklist Table -->
+      <div class="space-y-2 pt-2 border-t border-slate-800">
+        <h4 class="text-xs font-bold text-slate-400 flex items-center justify-between">
+          <span>لیست قطعات:</span>
+          <span class="text-[11px] font-normal text-slate-500">برای دانلود مستقیم هر قطعه، روی دکمه دانلود کنار آن کلیک کنید.</span>
+        </h4>
+        <div id="spTracklistContainer" class="space-y-1.5 max-h-96 overflow-y-auto custom-scroll pr-1">
+          <!-- Injected dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- YOUTUBE PLAYLIST CARD -->
+    <div id="youtubePlaylistCard" class="hidden glass rounded-2xl p-6 shadow-xl space-y-6 border border-rose-500/30">
+      <div class="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+        <div class="relative w-44 h-44 rounded-2xl overflow-hidden bg-slate-900 border border-slate-700 flex-shrink-0 shadow-2xl group">
+          <img id="ytPlCover" src="" alt="Playlist Cover" class="w-full h-full object-cover">
+          <span class="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md text-yt font-bold text-[11px] flex items-center gap-1 border border-yt/30">
+            <i class="fa-brands fa-youtube"></i> Playlist
+          </span>
+        </div>
+
+        <div class="flex-1 space-y-2 text-center sm:text-right">
+          <div class="flex items-center justify-center sm:justify-start gap-2">
+            <span class="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold flex items-center gap-1">
+              <i class="fa-solid fa-list-ul"></i> پلی‌لیست یوتیوب
+            </span>
+            <span id="ytPlVideoCountBadge" class="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-xs font-mono">
+              0 ویدیو
+            </span>
+          </div>
+          <h3 id="ytPlTitle" class="text-xl sm:text-2xl font-black text-white line-clamp-2">نام پلی‌لیست یوتیوب</h3>
+          <p id="ytPlChannel" class="text-sm text-slate-300 font-medium flex items-center justify-center sm:justify-start gap-1.5">
+            <i class="fa-solid fa-circle-user text-slate-400"></i>
+            <span>نام کانال</span>
+          </p>
+          <p class="text-xs text-slate-400">امکان دانلود دسته‌ای کل پلی‌لیست به صورت ویدیو یا فایل صوتی MP3 (همراه با تگ و کاور اختصاصی هر قطعه).</p>
+        </div>
+
+        <!-- Batch Download Controls -->
+        <div class="flex flex-col gap-2.5 w-full sm:w-72">
+          <!-- Video Batch -->
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-bold text-slate-300 flex items-center gap-1"><i class="fa-solid fa-video text-rose-400"></i> دانلود ویدیویی:</span>
+              <select id="ytBatchQualitySelect" class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none">
+                <option value="1080">1080p FHD</option>
+                <option value="720" selected>720p HD</option>
+                <option value="480">480p SD</option>
+                <option value="360">360p</option>
+              </select>
+            </div>
+            <button
+              onclick="downloadYouTubeBatch('video')"
+              class="w-full py-2.5 px-3 rounded-lg bg-gradient-to-r from-rose-600 to-red-600 hover:from-red-600 hover:to-rose-600 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-rose-600/20"
+            >
+              <i class="fa-solid fa-download"></i>
+              <span>دانلود کل پلی‌لیست (ویدیو)</span>
+            </button>
+          </div>
+
+          <!-- Audio Batch -->
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-bold text-slate-300 flex items-center gap-1"><i class="fa-solid fa-music text-purple-400"></i> دانلود صوتی:</span>
+              <select id="ytBatchAudioQualitySelect" class="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none">
+                <option value="mp3" selected>MP3 (192kbps)</option>
+                <option value="opus">Opus (بومی / کیفیت اصلی)</option>
+              </select>
+            </div>
+            <button
+              onclick="downloadYouTubeBatch('audio')"
+              class="w-full py-2.5 px-3 rounded-xl bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/30 font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-lg"
+            >
+              <i class="fa-solid fa-music"></i>
+              <span>دانلود کل پلی‌لیست (صوت)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Video List Table -->
+      <div class="space-y-3 pt-3 border-t border-slate-800">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-2">
+          <h4 class="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-layer-group text-slate-400"></i>
+            <span>لیست ویدیوهای پلی‌لیست:</span>
+          </h4>
+          <div class="w-full sm:w-64">
+            <input
+              type="text"
+              id="ytPlSearchInput"
+              oninput="filterYouTubePlaylistVideos()"
+              placeholder="جستجو در بین ویدیوها..."
+              class="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:border-rose-500/50 focus:outline-none"
+            >
+          </div>
+        </div>
+
+        <div id="ytPlVideosContainer" class="space-y-1.5 max-h-96 overflow-y-auto custom-scroll pr-1">
+          <!-- Injected dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- YOUTUBE VIDEO INFO CARD -->
+    <div id="youtubeInfoCard" class="hidden glass rounded-2xl p-6 shadow-xl space-y-6 border border-rose-500/30">
+      <!-- Playlist Alert Banner (if single video is part of a playlist) -->
+      <div id="ytVideoPlaylistBanner" class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between text-xs hidden">
+        <div class="flex items-center gap-2 text-rose-300">
+          <i class="fa-solid fa-list-ul text-rose-400"></i>
+          <span>این ویدیو بخشی از یک پلی‌لیست است! آیا مایل به مشاهده و دریافت کل پلی‌لیست هستید؟</span>
+        </div>
+        <button onclick="loadYouTubePlaylistFromVideo()" class="px-3 py-1.5 rounded-lg bg-yt text-white font-bold hover:bg-rose-600 transition flex items-center gap-1">
+          <i class="fa-solid fa-arrow-left"></i>
+          مشاهده کل پلی‌لیست
+        </button>
+      </div>
+
+      <div class="flex flex-col md:flex-row gap-6">
+        <!-- Thumbnail -->
+        <div class="relative w-full md:w-80 rounded-xl overflow-hidden aspect-video bg-slate-900 border border-slate-800 flex-shrink-0 group">
+          <img id="ytVideoThumb" src="" alt="Thumbnail" class="w-full h-full object-cover">
+          <span class="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md text-yt font-bold text-[11px] flex items-center gap-1 border border-yt/30">
+            <i class="fa-brands fa-youtube"></i> YouTube
+          </span>
+          <span id="ytVideoDuration" class="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 text-white font-mono text-xs font-semibold">00:00</span>
+        </div>
+
+        <!-- Details -->
+        <div class="flex-1 space-y-3 flex flex-col justify-between">
+          <div class="space-y-1">
+            <h3 id="ytVideoTitle" class="text-lg font-bold text-white line-clamp-2 leading-relaxed">عنوان ویدیو</h3>
+            <p id="ytVideoChannel" class="text-sm text-slate-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-user text-slate-500"></i>
+              <span>نام کانال</span>
+            </p>
+          </div>
+
+          <div class="pt-2 border-t border-slate-800/80 flex flex-wrap gap-2 text-xs">
+            <span class="px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
+              <i class="fa-solid fa-shield-halved text-emerald-400 ml-1"></i> بدون تبلیغات
+            </span>
+            <span class="px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
+              <i class="fa-solid fa-bolt text-amber-400 ml-1"></i> سرعت دانلود کامل
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Grid -->
+      <div class="space-y-4 pt-4 border-t border-slate-800">
+        <!-- Section 1: Video Download -->
+        <div class="space-y-2">
+          <h4 class="text-sm font-bold text-slate-300 flex items-center gap-2">
+            <i class="fa-solid fa-film text-yt"></i>
+            دانلود ویدیو با کیفیت دلخواه:
+          </h4>
+          <div id="ytVideoButtons" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <!-- Injected dynamically -->
+          </div>
+        </div>
+
+        <!-- Section 2: Audio & Subtitles -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+          <!-- Audio -->
+          <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+            <h4 class="text-sm font-bold text-slate-300 flex items-center gap-2">
+              <i class="fa-solid fa-music text-purple-400"></i>
+              دانلود فایل صوتی:
+            </h4>
+            <p class="text-xs text-slate-400">استخراج صوت همراه با کاور، تگ‌های آرتیست و متادیتا</p>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+              <button onclick="startDownload('audio', 'mp3')" class="py-2.5 px-3 rounded-lg bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/30 text-xs font-semibold transition flex items-center justify-center gap-1.5" title="فرمت استاندارد و سازگار MP3">
+                <i class="fa-solid fa-file-audio"></i> MP3 (192k)
+              </button>
+              <button onclick="startDownload('audio', 'opus')" class="py-2.5 px-3 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10" title="استریم مستقیم Opus بدون ترنسکد (سرعت ۵ برابری و حجم نصف)">
+                <i class="fa-solid fa-bolt text-amber-400"></i> Opus (بومی)
+              </button>
+            </div>
+          </div>
+
+          <!-- Subtitles -->
+          <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+            <h4 class="text-sm font-bold text-slate-300 flex items-center gap-2">
+              <i class="fa-regular fa-file-lines text-cyan-400"></i>
+              متن و زیرنویس (Transcript):
+            </h4>
+            <p class="text-xs text-slate-400">استخراج متن کامل صحبت‌های ویدیو به فارسی یا انگلیسی</p>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+              <button onclick="startDownload('subtitle', '', 'fa')" class="py-2.5 px-3 rounded-lg bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white border border-cyan-500/30 text-xs font-semibold transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-download"></i> متن فارسی
+              </button>
+              <button onclick="startDownload('subtitle', '', 'en')" class="py-2.5 px-3 rounded-lg bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-xs font-semibold transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-download"></i> English Sub
+              </button>
+            </div>
+            <button onclick="previewSubtitles('fa')" class="w-full text-center text-xs text-slate-400 hover:text-slate-200 transition pt-1">
+              👁️ مشاهده سریع متن در مرورگر
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Downloads List -->
+    <div class="glass rounded-2xl p-6 shadow-xl space-y-4">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <h3 class="font-bold text-sm text-white flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left text-slate-400"></i>
+            فایل‌های دانلود شده اخیر
+          </h3>
+          <span id="recentCountBadge" class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-xs font-mono">0</span>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+            <button id="filterAllBtn" onclick="setDownloadFilter('all')" class="px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-white transition">همه</button>
+            <button id="filterAudioBtn" onclick="setDownloadFilter('audio')" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition">موزیک‌ها</button>
+            <button id="filterVideoBtn" onclick="setDownloadFilter('video')" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition">ویدیوها</button>
+          </div>
+          <div class="relative flex-1 sm:w-48">
+            <input
+              type="text"
+              id="recentSearchInput"
+              oninput="filterRecentDownloads()"
+              placeholder="جستجو در دانلودها..."
+              class="w-full pl-7 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:border-slate-700 focus:outline-none"
+            >
+            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-slate-500 text-[11px]"></i>
+          </div>
+          <button onclick="loadRecentDownloads()" class="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition flex-shrink-0" title="به‌روزرسانی">
+            <i class="fa-solid fa-rotate-right text-xs"></i>
+          </button>
+        </div>
+      </div>
+
+      <div id="recentList" class="space-y-2">
+        <p class="text-xs text-slate-500 text-center py-4">در حال بارگذاری لیست دانلودها...</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- LYRICS MODAL (EN, Persian, Bilingual) -->
+  <div id="lyricsModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="glass max-w-3xl w-full rounded-2xl p-6 space-y-4 max-h-[90vh] flex flex-col border border-emerald-500/30 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <h3 id="lyricsModalSongTitle" class="font-bold text-base text-white flex items-center gap-2">
+            <i class="fa-solid fa-music text-sp"></i>
+            متن و ترجمه فارسی آهنگ
+          </h3>
+          <p id="lyricsModalArtist" class="text-xs text-slate-400">نام خواننده</p>
+        </div>
+        <button onclick="closeLyricsModal()" class="text-slate-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Tab Buttons -->
+      <div class="flex items-center gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-800 text-xs">
+        <button id="tabFa" onclick="switchLyricsTab('fa')" class="flex-1 py-2 rounded-lg font-bold transition bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          🇮🇷 ترجمه فارسی (Persian)
+        </button>
+        <button id="tabEn" onclick="switchLyricsTab('en')" class="flex-1 py-2 rounded-lg font-medium text-slate-400 hover:text-white transition">
+          🇬🇧 متن اصلی (Original Synced)
+        </button>
+        <button id="tabBi" onclick="switchLyricsTab('bi')" class="flex-1 py-2 rounded-lg font-medium text-slate-400 hover:text-white transition">
+          🌐 متن دوزبانه (Bilingual)
+        </button>
+      </div>
+
+      <!-- Content Area -->
+      <div id="lyricsContentArea" class="flex-1 overflow-y-auto custom-scroll text-sm text-slate-200 leading-loose font-sans bg-slate-950/70 p-4 rounded-xl border border-slate-800 whitespace-pre-wrap select-text min-h-[250px]">
+        در حال بارگذاری و ترجمه خط‌به‌خط لیریکس...
+      </div>
+
+      <!-- Footer Buttons -->
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+        <div class="flex items-center gap-2">
+          <button onclick="copyLyricsText()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition">
+            <i class="fa-regular fa-copy ml-1"></i> کپی متن
+          </button>
+          <button onclick="downloadLyricsFiles()" class="px-3.5 py-2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-semibold transition">
+            <i class="fa-solid fa-download ml-1"></i> ذخیره فایل‌های لیریکس (.lrc و .txt)
+          </button>
+        </div>
+        <button onclick="closeLyricsModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+          بستن
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DOWNLOAD FOLDER CONFIG MODAL -->
+  <div id="folderModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="glass w-full max-w-lg rounded-2xl border border-slate-700 p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-folder-gear text-indigo-400"></i>
+          انتخاب محل ذخیره‌سازی دانلودها
+        </h3>
+        <button onclick="closeFolderModal()" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div>
+          <label class="block text-slate-400 font-semibold mb-1.5">مسیر فعلی ذخیره فایل‌ها:</label>
+          <div id="modalCurrentPathDisplay" class="p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px] font-mono text-emerald-400 dir-ltr text-left break-all select-all">
+            در حال دریافت مسیر...
+          </div>
+          <button type="button" onclick="openDownloadFolder(null, this)" class="mt-2 w-full py-2 px-3 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center justify-center gap-2 border border-slate-700 hover:border-slate-600 transition shadow-sm active:scale-95">
+            <i class="fa-regular fa-folder-open text-amber-400"></i>
+            <span>باز کردن این پوشه در فایل اکسپلورر ویندوز</span>
+          </button>
+        </div>
+
+        <!-- Primary Option: Browse with Windows native dialog -->
+        <div class="p-4 rounded-xl bg-slate-900/80 border border-indigo-500/30 space-y-2">
+          <div class="font-bold text-slate-200 flex items-center gap-2">
+            <i class="fa-regular fa-folder-open text-indigo-400"></i>
+            انتخاب مستقیم با مرورگر ویندوز
+          </div>
+          <p class="text-slate-400 text-[11px]">پنجره استاندارد ویندوز باز می‌شود و می‌توانید هر پوشه یا درایوی را انتخاب کنید.</p>
+          <button onclick="pickFolderWithWindowsDialog()" id="btnPickNative" class="w-full mt-1 py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 active:scale-95">
+            <i class="fa-solid fa-arrow-pointer"></i>
+            <span>انتخاب پوشه (Browse Folder...)</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-slate-800 text-xs">
+        <button onclick="resetDefaultFolder()" class="text-slate-400 hover:text-rose-400 transition flex items-center gap-1">
+          <i class="fa-solid fa-rotate-left"></i> بازنشانی به پیش‌فرض
+        </button>
+        <button onclick="closeFolderModal()" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 font-semibold transition">
+          بستن
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROXY SETTINGS MODAL -->
+  <div id="proxyModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="glass w-full max-w-md rounded-2xl border border-slate-700 p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-network-wired text-emerald-400"></i>
+          تنظیمات وضعیت شبکه و پروکسی
+        </h3>
+        <button onclick="closeProxyModal()" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <p class="text-slate-400">حالت اتصال به شبکه (یوتیوب و اسپاتیفای) را انتخاب کنید:</p>
+
+        <label class="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+          <input type="radio" name="proxyMode" value="auto" checked onchange="toggleProxyInput()" class="text-emerald-500 focus:ring-0">
+          <div>
+            <div class="font-bold text-slate-200">🔍 تشخیص هوشمند خودکار (پیش‌فرض)</div>
+            <div class="text-slate-400 text-[11px]">پورت‌های V2Ray، Clash و اتصال مستقیم را بررسی و سالم‌ترین را انتخاب می‌کند.</div>
+          </div>
+        </label>
+
+        <label class="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+          <input type="radio" name="proxyMode" value="direct" onchange="toggleProxyInput()" class="text-emerald-500 focus:ring-0">
+          <div>
+            <div class="font-bold text-slate-200">⚡ اتصال مستقیم (بدون پروکسی)</div>
+            <div class="text-slate-400 text-[11px]">مناسب زمانی که وی‌پی‌ان سیستمی سراسری (WireGuard / Warp / Outline) دارید.</div>
+          </div>
+        </label>
+
+        <label class="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+          <input type="radio" name="proxyMode" value="custom" onchange="toggleProxyInput()" class="text-emerald-500 focus:ring-0">
+          <div>
+            <div class="font-bold text-slate-200">🛠️ آدرس پروکسی دلخواه</div>
+            <div class="text-slate-400 text-[11px]">تعیین دستی پورت یا آدرس اختصاصی</div>
+          </div>
+        </label>
+
+        <div id="customProxyBox" class="hidden pt-1">
+          <input type="text" id="customProxyInput" placeholder="http://127.0.0.1:10808 یا socks5://127.0.0.1:10809" dir="ltr" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 text-xs">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+        <button onclick="closeProxyModal()" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs hover:bg-slate-700">انصراف</button>
+        <button onclick="saveProxySettings()" class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black text-xs font-bold transition">اعمال و ذخیره</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SPOTIFY-STYLE FLOATING LUXURY BOTTOM DOCK PLAYER -->
+  <div id="bottomPlayerBar" dir="ltr" class="fixed bottom-3.5 left-3 right-3 sm:left-6 sm:right-6 lg:left-12 lg:right-12 z-40 bg-slate-950/92 backdrop-blur-2xl border border-slate-700/80 rounded-2xl shadow-[0_12px_45px_rgba(0,0,0,0.85)] h-20 px-4 md:px-7 flex items-center justify-between hidden transition-all duration-300 overflow-hidden">
+    <!-- Real-time Dynamic Ambient Glow Layer -->
+    <div id="playerAmbientGlow" class="absolute inset-0 rounded-2xl pointer-events-none opacity-0 transition-opacity duration-700 blur-2xl" style="z-index: 0;"></div>
+    <audio id="bottomAudio" preload="auto"></audio>
+
+    <!-- Track Info (Left in LTR) -->
+    <div class="relative z-10 flex items-center gap-3 w-1/4 min-w-[190px] text-left">
+      <!-- Real Cover Thumbnail / Fallback -->
+      <div id="playerThumbBox" class="relative w-12 h-12 rounded-xl bg-slate-900 border border-slate-700/80 overflow-hidden flex-shrink-0 shadow-lg group">
+        <img id="playerCoverImg" src="" alt="" class="w-full h-full object-cover hidden" onerror="this.classList.add('hidden'); document.getElementById('playerFallbackIcon').classList.remove('hidden');">
+        <div id="playerFallbackIcon" class="w-full h-full flex items-center justify-center bg-gradient-to-tr from-emerald-600/30 to-teal-500/20 text-emerald-400">
+          <i class="fa-solid fa-music text-base animate-pulse"></i>
+        </div>
+      </div>
+
+      <div id="playerMetaBox" class="min-w-0 text-left">
+        <div class="flex items-center gap-2">
+          <h4 id="playerTitle" class="text-xs sm:text-sm font-bold text-white truncate max-w-[140px] sm:max-w-[200px]" title="عنوان ترک">عنوان ترک</h4>
+          <!-- CSS Animated Audio Visualizer -->
+          <div id="playerVisualizer" class="hidden items-end gap-0.5 h-3 flex-shrink-0" title="در حال پخش...">
+            <span class="w-0.5 bg-sp rounded-full h-1 animate-pulse"></span>
+            <span class="w-0.5 bg-sp rounded-full h-3 animate-pulse" style="animation-delay: 100ms;"></span>
+            <span class="w-0.5 bg-sp rounded-full h-2 animate-pulse" style="animation-delay: 200ms;"></span>
+            <span class="w-0.5 bg-sp rounded-full h-2.5 animate-pulse" style="animation-delay: 150ms;"></span>
+          </div>
+        </div>
+        <p id="playerArtist" class="text-[10px] sm:text-[11px] text-slate-400 truncate mt-0.5">پخش زنده درون‌برنامه‌ای</p>
+      </div>
+    </div>
+
+    <!-- Center Playback Controls & Scrubber -->
+    <div class="relative z-10 flex flex-col items-center justify-center w-2/4 max-w-xl px-2 space-y-1.5">
+      <div class="flex items-center gap-2 sm:gap-4">
+        <!-- Repeat Mode (Off / All / One) -->
+        <button id="playerRepeatBtn" onclick="toggleRepeatMode()" class="text-slate-400 hover:text-white transition relative p-1.5 active:scale-95" title="حالت تکرار (L) - خاموش">
+          <i class="fa-solid fa-repeat text-xs"></i>
+          <span id="repeatOneBadge" class="hidden absolute -top-1 -right-1 text-[8px] font-black bg-sp text-black rounded-full px-1">1</span>
+          <span id="repeatDot" class="hidden absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-sp"></span>
+        </button>
+
+        <!-- Previous Track -->
+        <button onclick="playPrevTrack()" class="text-slate-400 hover:text-white transition active:scale-90 p-1" title="قطعه قبلی (P)">
+          <i class="fa-solid fa-backward-step text-sm"></i>
+        </button>
+
+        <!-- Rewind 10s (-10s) -->
+        <button onclick="seekMedia(-10)" class="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white transition active:scale-95 text-xs border border-slate-800 font-mono shadow-sm" title="۱۰ ثانیه به عقب (Left Arrow)">
+          <i class="fa-solid fa-rotate-left text-[11px] text-amber-400"></i>
+          <span class="font-bold text-[11px]">-10s</span>
+        </button>
+
+        <!-- Play / Pause -->
+        <button id="playerPlayBtn" onclick="toggleBottomPlay()" class="w-10 h-10 rounded-full bg-sp hover:bg-emerald-400 text-black flex items-center justify-center transition shadow-lg shadow-emerald-500/30 hover:scale-105 active:scale-95" title="پخش / توقف (Space)">
+          <i id="playerPlayIcon" class="fa-solid fa-play text-xs ml-0.5"></i>
+        </button>
+
+        <!-- Forward 10s (+10s) -->
+        <button onclick="seekMedia(10)" class="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white transition active:scale-95 text-xs border border-slate-800 font-mono shadow-sm" title="۱۰ ثانیه به جلو (Right Arrow)">
+          <span class="font-bold text-[11px]">+10s</span>
+          <i class="fa-solid fa-rotate-right text-[11px] text-emerald-400"></i>
+        </button>
+
+        <!-- Next Track -->
+        <button onclick="playNextTrack()" class="text-slate-400 hover:text-white transition active:scale-90 p-1" title="قطعه بعدی (N)">
+          <i class="fa-solid fa-forward-step text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Live Scrubber Timeline (LTR standard) with Hover Tooltip -->
+      <div class="relative w-full flex items-center gap-2.5">
+        <span id="playerCurrentTime" class="text-[10px] font-mono text-slate-400 w-9 text-left select-none">00:00</span>
+        <div class="relative flex-1 flex items-center">
+          <input type="range" id="playerScrubber" min="0" max="100" value="0" step="0.1" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sp hover:h-1.5 transition-all">
+          <div id="scrubberTooltip" class="hidden absolute -top-7 bg-slate-900 text-white font-mono text-[10px] px-1.5 py-0.5 rounded border border-slate-700 shadow-md -translate-x-1/2 pointer-events-none">00:00</div>
+        </div>
+        <span id="playerTotalDuration" class="text-[10px] font-mono text-slate-400 w-9 text-right select-none">00:00</span>
+      </div>
+    </div>
+
+    <!-- Right Controls (Volume, Folder, Direction Toggle, Close) -->
+    <div class="relative z-10 flex items-center justify-end gap-2 w-1/4 min-w-[150px]">
+      <div class="hidden sm:flex items-center gap-2">
+        <button id="playerMuteBtn" onclick="toggleMute()" class="text-slate-400 hover:text-white transition p-1" title="قطع / وصل صدا (M)">
+          <i id="volumeIcon" class="fa-solid fa-volume-high text-xs"></i>
+        </button>
+        <input type="range" id="playerVolume" min="0" max="1" step="0.02" value="1" class="w-16 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sp">
+      </div>
+      <button id="playerFolderBtn" onclick="" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs transition active:scale-95" title="نمایش فایل در ویندوز اکسپلورر">
+        <i class="fa-regular fa-folder-open text-amber-400"></i>
+      </button>
+      <button id="playerDirToggleBtn" onclick="togglePlayerDirection()" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 text-xs transition active:scale-95" title="تغییر جهت نوار (چپ‌به‌راست / راست‌به‌چپ)">
+        <i class="fa-solid fa-right-left"></i>
+      </button>
+      <button onclick="closeBottomPlayer()" class="p-2 rounded-lg bg-slate-800/80 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 text-xs transition active:scale-95" title="بستن نوار پخش (Esc)">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- YOUTUBE SUBTITLE PREVIEW MODAL -->
+  <div id="subModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="glass max-w-2xl w-full rounded-2xl p-6 space-y-4 max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="font-bold text-white flex items-center gap-2">
+          <i class="fa-regular fa-file-lines text-cyan-400"></i>
+          متن ویدیوی استخراج‌شده یوتیوب
+        </h3>
+        <button onclick="closeSubModal()" class="text-slate-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div id="subModalContent" class="flex-1 overflow-y-auto custom-scroll text-sm text-slate-300 leading-relaxed font-sans bg-slate-950/60 p-4 rounded-xl border border-slate-800 whitespace-pre-wrap select-text">
+        در حال دریافت متن...
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="copySubText()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition">
+          <i class="fa-regular fa-copy ml-1"></i> کپی کامل متن
+        </button>
+        <button onclick="closeSubModal()" class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition">
+          بستن
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast Container -->
+  <div id="toastContainer" class="fixed bottom-5 left-5 z-50 flex flex-col gap-2 pointer-events-none max-w-sm sm:max-w-md w-full px-4 sm:px-0"></div>
+
+  <!-- Core JavaScript Logic -->
+  <script>
+    let currentUrl = '';
+    let currentMediaData = null;
+    let selectedSpotifyQuality = '320';
+    let activePollInterval = null;
+    let currentLyricsData = { fa: '', en: '', bi: '' };
+    let currentLyricsTab = 'fa';
+    let currentCompletedFilePath = null;
+
+    function showToast(message, type = 'info', actionBtn = null) {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+      const toast = document.createElement('div');
+      const border = type === 'success' ? 'border-emerald-500/50 bg-slate-900/95 text-emerald-300' : (type === 'error' ? 'border-rose-500/50 bg-slate-900/95 text-rose-300' : 'border-indigo-500/50 bg-slate-900/95 text-slate-200');
+      toast.className = `pointer-events-auto flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border ${border} shadow-2xl backdrop-blur-md text-xs font-semibold transition-all duration-300 cursor-pointer select-none`;
+      toast.title = 'برای بستن کلیک کنید';
+      
+      const leftCol = document.createElement('div');
+      leftCol.className = 'flex items-center gap-2.5 overflow-hidden';
+      const iconClass = type === 'success' ? 'fa-circle-check text-emerald-400' : (type === 'error' ? 'fa-triangle-exclamation text-rose-400' : 'fa-circle-info text-indigo-400');
+      leftCol.innerHTML = `<i class="fa-solid ${iconClass} text-sm flex-shrink-0"></i><span class="truncate">${message}</span>`;
+      toast.appendChild(leftCol);
+
+      const rightCol = document.createElement('div');
+      rightCol.className = 'flex items-center gap-2 flex-shrink-0';
+
+      if (actionBtn) {
+        const btn = document.createElement('button');
+        btn.className = 'px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200 border border-slate-700 transition flex-shrink-0';
+        btn.innerHTML = actionBtn.label;
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          actionBtn.onClick();
+        };
+        rightCol.appendChild(btn);
+      }
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'text-slate-400 hover:text-white p-0.5 text-xs transition';
+      closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+      closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(8px)';
+        setTimeout(() => toast.remove(), 200);
+      };
+      rightCol.appendChild(closeBtn);
+      toast.appendChild(rightCol);
+
+      toast.onclick = () => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(8px)';
+        setTimeout(() => toast.remove(), 200);
+      };
+
+      container.appendChild(toast);
+      setTimeout(() => {
+        if (toast.parentElement) {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(8px)';
+          setTimeout(() => toast.remove(), 250);
+        }
+      }, 2500);
+    }
+
+    function handleUrlInputChange() {
+      const val = document.getElementById('urlInput').value.trim();
+      const icon = document.getElementById('inputIcon');
+      if (val.includes('spotify.com') || val.startsWith('spotify:')) {
+        icon.className = 'fa-brands fa-spotify text-sp';
+      } else if (val.includes('youtube.com') || val.includes('youtu.be')) {
+        icon.className = 'fa-brands fa-youtube text-yt';
+      } else {
+        icon.className = 'fa-solid fa-link text-slate-400';
+      }
+    }
+
+    async function pasteClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          document.getElementById('urlInput').value = text;
+          handleUrlInputChange();
+        }
+      } catch (err) {
+        alert('لطفاً آدرس را به صورت دستی در کادر وارد کنید.');
+      }
+    }
+
+    function setSpotifyQuality(q) {
+      selectedSpotifyQuality = q;
+      const b320 = document.getElementById('btnQ320');
+      const b192 = document.getElementById('btnQ192');
+      const lbl = document.getElementById('btnQualityLabel');
+      if (q === '320') {
+        b320.className = 'px-3 py-1 rounded-md bg-sp text-black font-bold text-xs transition';
+        b192.className = 'px-3 py-1 rounded-md text-slate-300 font-medium text-xs hover:text-white transition';
+        lbl.textContent = '320kbps';
+      } else {
+        b192.className = 'px-3 py-1 rounded-md bg-sp text-black font-bold text-xs transition';
+        b320.className = 'px-3 py-1 rounded-md text-slate-300 font-medium text-xs hover:text-white transition';
+        lbl.textContent = '192kbps';
+      }
+    }
+
+    async function fetchMediaInfo(e) {
+      e.preventDefault();
+      const url = document.getElementById('urlInput').value.trim();
+      if (!url) return;
+
+      currentUrl = url;
+      setLoading(true);
+
+      // Hide cards
+      document.getElementById('spotifyTrackCard').classList.add('hidden');
+      document.getElementById('spotifyCollectionCard').classList.add('hidden');
+      document.getElementById('youtubePlaylistCard').classList.add('hidden');
+      document.getElementById('youtubeInfoCard').classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/info', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({url})
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'خطا در واکشی اطلاعات');
+
+        currentMediaData = data;
+
+        if (data.platform === 'spotify') {
+          if (data.entity_type === 'track') {
+            renderSpotifyTrackCard(data);
+          } else {
+            renderSpotifyCollectionCard(data);
+          }
+        } else if (data.platform === 'youtube') {
+          if (data.entity_type === 'playlist') {
+            renderYouTubePlaylistCard(data);
+          } else {
+            renderYouTubeCard(data);
+          }
+        }
+      } catch (err) {
+        alert('خطا: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function renderSpotifyTrackCard(info) {
+      document.getElementById('spTrackCover').src = info.cover || '/static/logo.png';
+      document.getElementById('spTrackTitle').textContent = info.title;
+      document.getElementById('spTrackArtist').querySelector('span').textContent = info.artist;
+      document.getElementById('spTrackAlbum').querySelector('span').textContent = 'آلبوم: ' + (info.album || info.title);
+      document.getElementById('spTrackDuration').textContent = info.duration || '00:00';
+      document.getElementById('spTrackYearBadge').textContent = info.release_year || 'Single';
+
+      const card = document.getElementById('spotifyTrackCard');
+      card.classList.remove('hidden');
+      card.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function renderSpotifyCollectionCard(info) {
+      document.getElementById('spColCover').src = info.cover || '/static/logo.png';
+      document.getElementById('spColTitle').textContent = info.title;
+      document.getElementById('spColArtist').textContent = info.artist || 'اسپاتیفای';
+      document.getElementById('spColTypeBadge').textContent = info.entity_type === 'album' ? 'آلبوم رسمی اسپاتیفای' : 'پلی‌لیست اسپاتیفای';
+      document.getElementById('spColTrackCountBadge').textContent = `${info.total_tracks} قطعه`;
+
+      const listContainer = document.getElementById('spTracklistContainer');
+      listContainer.innerHTML = '';
+
+      info.tracks.forEach((t, i) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs hover:border-slate-700 transition';
+        row.innerHTML = `
+          <div class="flex items-center gap-3 overflow-hidden">
+            <span class="w-6 text-center font-mono text-slate-500 font-bold">${t.track_num}</span>
+            <div class="truncate">
+              <div class="font-bold text-slate-100 truncate">${t.title}</div>
+              <div class="text-[11px] text-slate-400 truncate">${t.artist}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="font-mono text-slate-400 text-[11px]">${t.duration}</span>
+            <button onclick="downloadSingleCollectionTrack(${i})" class="px-2.5 py-1.5 rounded-lg bg-sp/20 hover:bg-sp text-sp hover:text-black font-bold text-[11px] transition flex items-center gap-1">
+              <i class="fa-solid fa-download"></i> دانلود MP3
+            </button>
+          </div>
+        `;
+        listContainer.appendChild(row);
+      });
+
+      const card = document.getElementById('spotifyCollectionCard');
+      card.classList.remove('hidden');
+      card.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function renderYouTubeCard(info) {
+      document.getElementById('ytVideoThumb').src = info.thumbnail || '';
+      document.getElementById('ytVideoDuration').textContent = info.duration || '00:00';
+      document.getElementById('ytVideoTitle').textContent = info.title;
+      document.getElementById('ytVideoChannel').querySelector('span').textContent = info.channel;
+
+      const plBanner = document.getElementById('ytVideoPlaylistBanner');
+      if (plBanner) {
+        if (info.playlist_id) {
+          plBanner.classList.remove('hidden');
+        } else {
+          plBanner.classList.add('hidden');
+        }
+      }
+
+      const btnContainer = document.getElementById('ytVideoButtons');
+      btnContainer.innerHTML = '';
+
+      const qualities = [
+        { key: '1080', label: '1080p (FHD)', color: 'bg-emerald-600/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-600' },
+        { key: '720', label: '720p (HD)', color: 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-600' },
+        { key: '480', label: '480p', color: 'bg-amber-600/20 text-amber-300 border-amber-500/30 hover:bg-amber-600' },
+        { key: '360', label: '360p', color: 'bg-slate-700/40 text-slate-300 border-slate-600 hover:bg-slate-700' },
+      ];
+
+      qualities.forEach(q => {
+        const sizeBadge = info.qualities && info.qualities[q.key] ? ` [${info.qualities[q.key]}]` : '';
+        const btn = document.createElement('button');
+        btn.className = `p-3 rounded-xl border text-xs font-bold transition flex flex-col items-center justify-center gap-1 hover:text-white ${q.color}`;
+        btn.innerHTML = `<span class="flex items-center gap-1"><i class="fa-solid fa-video"></i> ${q.label}</span><span class="text-[10px] opacity-75">${sizeBadge}</span>`;
+        btn.onclick = () => startDownload('video', q.key);
+        btnContainer.appendChild(btn);
+      });
+
+      const card = document.getElementById('youtubeInfoCard');
+      card.classList.remove('hidden');
+      card.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function loadYouTubePlaylistFromVideo() {
+      if (currentMediaData && currentMediaData.playlist_id) {
+        const plUrl = `https://www.youtube.com/playlist?list=${currentMediaData.playlist_id}`;
+        document.getElementById('urlInput').value = plUrl;
+        handleUrlInputChange();
+        fetchMediaInfo(new Event('submit'));
+      }
+    }
+
+    function renderYouTubePlaylistCard(info) {
+      document.getElementById('ytPlCover').src = info.thumbnail || '/static/logo.png';
+      document.getElementById('ytPlTitle').textContent = info.title;
+      document.getElementById('ytPlChannel').querySelector('span').textContent = info.channel || 'یوتیوب';
+      document.getElementById('ytPlVideoCountBadge').textContent = `${info.total_videos} ویدیو`;
+      document.getElementById('ytPlSearchInput').value = '';
+
+      renderYouTubePlaylistItems(info.videos);
+
+      const card = document.getElementById('youtubePlaylistCard');
+      card.classList.remove('hidden');
+      card.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function renderYouTubePlaylistItems(videos) {
+      const container = document.getElementById('ytPlVideosContainer');
+      container.innerHTML = '';
+
+      if (!videos || videos.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-500 text-center py-4">ویدیویی یافت نشد.</p>';
+        return;
+      }
+
+      videos.forEach((v) => {
+        const row = document.createElement('div');
+        row.className = 'yt-pl-item flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs hover:border-slate-700 transition gap-2';
+        row.setAttribute('data-title', (v.title || '').toLowerCase());
+
+        row.innerHTML = `
+          <div class="flex items-center gap-3 overflow-hidden min-w-0">
+            <span class="w-6 text-center font-mono text-slate-500 font-bold flex-shrink-0">${v.index}</span>
+            <div class="relative w-16 h-10 rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex-shrink-0">
+              <img src="${v.thumbnail || ''}" alt="thumb" class="w-full h-full object-cover">
+              <span class="absolute bottom-0.5 left-0.5 px-1 py-0.2 rounded bg-black/80 text-[9px] font-mono text-slate-200">${v.duration || '00:00'}</span>
+            </div>
+            <div class="truncate min-w-0">
+              <div class="font-bold text-slate-100 truncate text-xs" title="${v.title}">${v.title}</div>
+              <div class="text-[11px] text-slate-400 truncate">${v.channel || ''}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <button onclick="downloadSingleYouTubePlaylistVideo(${v.index - 1}, 'video')" class="px-2.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-bold text-[11px] transition flex items-center gap-1" title="دانلود ویدیو (720p)">
+              <i class="fa-solid fa-video text-[10px]"></i> 720p
+            </button>
+            <button onclick="downloadSingleYouTubePlaylistVideo(${v.index - 1}, 'audio')" class="px-2.5 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white font-bold text-[11px] transition flex items-center gap-1" title="دانلود صوت MP3">
+              <i class="fa-solid fa-music text-[10px]"></i> MP3
+            </button>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function filterYouTubePlaylistVideos() {
+      const q = (document.getElementById('ytPlSearchInput').value || '').trim().toLowerCase();
+      const rows = document.querySelectorAll('.yt-pl-item');
+      rows.forEach(row => {
+        const title = row.getAttribute('data-title') || '';
+        if (!q || title.includes(q)) {
+          row.classList.remove('hidden');
+        } else {
+          row.classList.add('hidden');
+        }
+      });
+    }
+
+    async function downloadYouTubeBatch(formatType) {
+      if (!currentMediaData || currentMediaData.entity_type !== 'playlist') return;
+      const count = currentMediaData.total_videos || (currentMediaData.videos ? currentMediaData.videos.length : 0);
+
+      let quality = '720';
+      let label = 'ویدیو';
+      if (formatType === 'video') {
+        const sel = document.getElementById('ytBatchQualitySelect');
+        quality = sel ? sel.value : '720';
+        label = `ویدیو (${quality}p)`;
+      } else {
+        const sel = document.getElementById('ytBatchAudioQualitySelect');
+        quality = sel ? sel.value : 'mp3';
+        label = quality === 'opus' ? 'صوت Opus بومی' : 'صوت MP3';
+      }
+
+      if (!confirm(`آیا مایل به دانلود تمام ${count} ${label} این پلی‌لیست یوتیوب هستید؟`)) return;
+
+      await startDownload('youtube_batch', quality, 'fa', {
+        playlist_title: currentMediaData.title,
+        playlist_id: currentMediaData.playlist_id,
+        format_type: formatType,
+        items: currentMediaData.videos
+      });
+    }
+
+    async function downloadSingleYouTubePlaylistVideo(videoIndex, formatType) {
+      if (!currentMediaData || !currentMediaData.videos || !currentMediaData.videos[videoIndex]) return;
+      const v = currentMediaData.videos[videoIndex];
+      const actionType = formatType === 'video' ? 'video' : 'audio';
+      const q = formatType === 'video' ? '720' : '192';
+
+      await startDownload(actionType, q, 'fa', {
+        title: v.title,
+        url: v.url
+      });
+    }
+
+    // -------------------------------------------------------------
+    // Downloads Triggering
+    // -------------------------------------------------------------
+    async function downloadSpotifyAudio() {
+      if (!currentMediaData) return;
+      await startDownload('spotify_audio', selectedSpotifyQuality, 'fa', {
+        title: currentMediaData.title,
+        artist: currentMediaData.artist,
+        album: currentMediaData.album,
+        release_year: currentMediaData.release_year,
+        cover: currentMediaData.cover,
+        duration_seconds: currentMediaData.duration_seconds
+      });
+    }
+
+    async function downloadSingleCollectionTrack(trackIndex) {
+      if (!currentMediaData || !currentMediaData.tracks) return;
+      const t = currentMediaData.tracks[trackIndex];
+      const isPlaylist = currentMediaData.entity_type === 'playlist';
+      await startDownload('spotify_audio', selectedSpotifyQuality, 'fa', {
+        url: t.url,
+        track_id: t.id,
+        title: t.title,
+        artist: t.artist,
+        album: isPlaylist ? '' : currentMediaData.title,
+        release_year: '',
+        cover: isPlaylist ? '' : currentMediaData.cover,
+        collection_cover: currentMediaData.cover,
+        collection_name: currentMediaData.title,
+        is_playlist: isPlaylist,
+        duration_seconds: t.duration_seconds,
+        track_num: t.track_num
+      });
+    }
+
+    async function downloadSpotifyBatch() {
+      if (!currentMediaData || !currentMediaData.tracks) return;
+      const count = currentMediaData.tracks.length;
+      const isPlaylist = currentMediaData.entity_type === 'playlist';
+      const label = isPlaylist ? 'پلی‌لیست' : 'آلبوم';
+      if (!confirm(`آیا مایل به دانلود تمام ${count} قطعه این ${label} هستید؟`)) return;
+
+      await startDownload('spotify_batch', selectedSpotifyQuality, 'fa', {
+        title: currentMediaData.title,
+        artist: currentMediaData.artist,
+        cover: currentMediaData.cover,
+        entity_type: currentMediaData.entity_type,
+        is_playlist: isPlaylist,
+        tracks: currentMediaData.tracks
+      });
+    }
+
+    async function downloadLyricsFiles() {
+      if (!currentMediaData) return;
+      await startDownload('spotify_lyrics', '', 'bilingual', {
+        title: currentMediaData.title,
+        artist: currentMediaData.artist,
+        duration_seconds: currentMediaData.duration_seconds
+      });
+      closeLyricsModal();
+    }
+
+    async function startDownload(type, quality, lang, extra) {
+      const targetUrl = (extra && extra.url) ? extra.url : currentUrl;
+      if (!targetUrl) return;
+
+      try {
+        const res = await fetch('/api/download', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            url: targetUrl,
+            type,
+            quality: quality || '720',
+            lang: lang || 'fa',
+            extra: extra || {}
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'خطا در شروع دانلود');
+
+        showToast('🚀 دانلود جدید با موفقیت به صف اضافه شد.', 'info');
+        await pollActiveTasks(true);
+        const section = document.getElementById('activeTasksSection');
+        if (section) section.scrollIntoView({ behavior: 'smooth' });
+      } catch (err) {
+        alert('خطا در شروع دانلود: ' + err.message);
+      }
+    }
+
+    // Shared Singleton Web Audio API Context for Chime (prevents AudioContext limit leak)
+    let sharedAudioCtx = null;
+    function getSharedAudioContext() {
+      if (!sharedAudioCtx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return null;
+        sharedAudioCtx = new AudioCtx();
+      }
+      if (sharedAudioCtx.state === 'suspended') {
+        sharedAudioCtx.resume().catch(() => {});
+      }
+      return sharedAudioCtx;
+    }
+
+    // Web Audio API Synthesized Chime for Download Completion
+    function playSuccessChime() {
+      try {
+        const ctx = getSharedAudioContext();
+        if (!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        const now = ctx.currentTime;
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.exponentialRampToValueAtTime(880.0, now + 0.12); // A5
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.55);
+      } catch (e) {
+        // Ignore audio context autoplay policy restrictions
+      }
+    }
+
+    let completedNotifiedSet = new Set();
+    let isPollingTasks = false;
+    let pollTimeoutId = null;
+    let activePollDelay = 1500;
+
+    async function pollActiveTasks(forceImmediate = false) {
+      if (pollTimeoutId) {
+        clearTimeout(pollTimeoutId);
+        pollTimeoutId = null;
+      }
+      if (isPollingTasks && !forceImmediate) return;
+      isPollingTasks = true;
+      try {
+        const res = await fetch('/api/tasks/active');
+        if (!res.ok) return;
+        const data = await res.json();
+        const tasks = data.tasks || [];
+        renderActiveTasks(tasks);
+
+        // Adaptive polling frequency:
+        const hasRunningTasks = tasks.some(t => !t.is_done);
+        if (hasRunningTasks) {
+          activePollDelay = 1200; // Active downloading: fast updates
+        } else if (tasks.length > 0) {
+          activePollDelay = 4000; // Finished tasks visible
+        } else {
+          activePollDelay = 8000; // Completely idle: minimal heartbeat
+        }
+      } catch (e) {
+        console.error('Error polling active tasks:', e);
+        activePollDelay = 6000;
+      } finally {
+        isPollingTasks = false;
+        pollTimeoutId = setTimeout(() => pollActiveTasks(), activePollDelay);
+      }
+    }
+
+    function buildTaskCardHtml(t) {
+      const isAudio = (t.type && t.type.includes('spotify')) || t.type === 'audio';
+      const isLrc = t.type === 'spotify_lyrics' || t.type === 'subtitle';
+      const isBatch = t.type === 'spotify_batch';
+      
+      let iconHtml = '<i class="fa-solid fa-film text-yt text-lg"></i>';
+      let platformLabel = 'YouTube';
+      let platformBadgeColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+
+      if (t.type && t.type.includes('spotify')) {
+        iconHtml = '<i class="fa-brands fa-spotify text-sp text-lg"></i>';
+        platformLabel = isBatch ? 'اسپاتیفای (آلبوم)' : (isLrc ? 'اسپاتیفای (لیریکس)' : 'اسپاتیفای (صوت)');
+        platformBadgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      } else if (isLrc) {
+        iconHtml = '<i class="fa-regular fa-file-lines text-cyan-400 text-lg"></i>';
+        platformLabel = 'زیرنویس یوتیوب';
+        platformBadgeColor = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+      } else if (isAudio) {
+        iconHtml = '<i class="fa-solid fa-music text-purple-400 text-lg"></i>';
+        platformLabel = 'صوت یوتیوب';
+        platformBadgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+      }
+
+      const isDone = t.is_done;
+      const hasError = !!t.error;
+      const safePath = t.filepath ? encodeURIComponent(t.filepath).replace(/'/g, '%27') : '';
+
+      let footerActions = '';
+      if (isDone && !hasError) {
+        footerActions = `
+          <div class="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span class="text-emerald-400 font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-check text-sm"></i> دانلود ذخیره شد
+            </span>
+            <div class="flex items-center gap-2">
+              <button onclick="openDownloadFolder(decodeURIComponent('${safePath}'), this)" class="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-black font-bold text-xs transition flex items-center gap-1.5 border border-emerald-500/30 active:scale-95">
+                <i class="fa-regular fa-folder-open"></i> نمایش در پوشه
+              </button>
+              <button onclick="dismissTask('${t.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs transition" title="بستن این کارت">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      } else if (isDone && hasError) {
+        footerActions = `
+          <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 text-xs">
+            <span class="text-rose-400 font-semibold truncate flex items-center gap-1.5" title="${t.error}">
+              <i class="fa-solid fa-triangle-exclamation"></i> خطا: ${t.error}
+            </span>
+            <button onclick="dismissTask('${t.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs transition" title="حذف این کارت">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        `;
+      } else if (!isDone) {
+        footerActions = `
+          <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 text-xs">
+            <span class="text-slate-400 text-[11px] truncate flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-notch fa-spin text-emerald-400"></i> ${t.status}
+            </span>
+            <button onclick="cancelTask('${t.id}')" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] transition flex items-center gap-1 active:scale-95" title="توقف و لغو این دانلود">
+              <i class="fa-solid fa-stop text-[10px]"></i> لغو دانلود
+            </button>
+          </div>
+        `;
+      }
+
+      const progressBarAnim = !isDone ? 'progress-bar-animated' : '';
+      const barColor = hasError ? 'from-rose-500 to-red-600' : (isDone ? 'from-emerald-500 to-teal-400' : 'from-emerald-500 via-teal-400 to-sp');
+
+      return `
+        <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition space-y-3" id="taskCard_${t.id}" data-isdone="${isDone}">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 overflow-hidden">
+              <div class="w-9 h-9 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center flex-shrink-0">
+                ${iconHtml}
+              </div>
+              <div class="overflow-hidden">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-slate-100 text-xs sm:text-sm truncate" title="${t.title || ''}">${t.title || 'دانلود مدیا'}</span>
+                  <span class="px-2 py-0.2 rounded-full border text-[10px] font-semibold flex-shrink-0 ${platformBadgeColor}">${platformLabel}</span>
+                </div>
+                <p class="text-[11px] text-slate-400 truncate mt-0.5" id="taskStatus_${t.id}">${t.status}</p>
+              </div>
+            </div>
+            <div class="text-left font-mono text-xs sm:text-sm font-bold text-emerald-400 flex-shrink-0" id="taskPercent_${t.id}">
+              ${t.progress}%
+            </div>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden p-0.5">
+            <div id="taskBar_${t.id}" class="bg-gradient-to-r ${barColor} h-full rounded-full transition-all duration-300 ${progressBarAnim}" style="width: ${t.progress}%"></div>
+          </div>
+
+          <!-- Stats -->
+          <div class="flex justify-between items-center text-[11px] text-slate-400 font-mono">
+            <div id="taskSpeed_${t.id}"><i class="fa-solid fa-gauge-high ml-1"></i> ${t.speed || '0 B/s'}</div>
+            <div id="taskEta_${t.id}"><i class="fa-regular fa-clock ml-1"></i> باقی‌مانده: ${t.eta || '--'}</div>
+            <div id="taskBytes_${t.id}"><i class="fa-solid fa-database ml-1"></i> ${t.downloaded || '0 B'} / ${t.total || '0 B'}</div>
+          </div>
+
+          ${footerActions}
+        </div>
+      `;
+    }
+
+    function renderActiveTasks(tasks) {
+      const section = document.getElementById('activeTasksSection');
+      const list = document.getElementById('activeTasksList');
+      const badge = document.getElementById('activeTasksCountBadge');
+      if (!section || !list) return;
+
+      if (!tasks || tasks.length === 0) {
+        section.classList.add('hidden');
+        list.innerHTML = '';
+        if (badge) badge.textContent = '۰';
+        return;
+      }
+
+      section.classList.remove('hidden');
+      const runningCount = tasks.filter(t => !t.is_done).length;
+      if (badge) {
+        badge.textContent = runningCount > 0 ? `${runningCount} در حال دانلود` : `${tasks.length} پایان‌یافته`;
+        badge.className = runningCount > 0
+          ? 'px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-mono font-bold animate-pulse'
+          : 'px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-xs font-mono';
+      }
+
+      // Trigger completion notifications once
+      tasks.forEach(t => {
+        if (t.is_done && !t.error && !completedNotifiedSet.has(t.id)) {
+          completedNotifiedSet.add(t.id);
+          playSuccessChime();
+          loadRecentDownloads();
+          showToast(`✅ دانلود «${t.title}» با موفقیت تکمیل شد!`, 'success', {
+            label: '📂 نمایش در پوشه',
+            onClick: () => openDownloadFolder(t.filepath || null)
+          });
+        }
+      });
+
+      // Efficient in-place update for smooth progress animations
+      const currentCards = Array.from(list.children);
+      const currentCardIds = currentCards.map(c => c.id.replace('taskCard_', ''));
+      const newCardIds = tasks.map(t => t.id);
+
+      const idsMatch = currentCardIds.length === newCardIds.length && currentCardIds.every((id, idx) => id === newCardIds[idx]);
+
+      if (idsMatch) {
+        let needFullRebuild = false;
+        tasks.forEach(t => {
+          const card = document.getElementById(`taskCard_${t.id}`);
+          if (!card) {
+            needFullRebuild = true;
+            return;
+          }
+          const wasDone = card.getAttribute('data-isdone') === 'true';
+          if (wasDone !== t.is_done) {
+            needFullRebuild = true;
+            return;
+          }
+
+          const statusEl = document.getElementById(`taskStatus_${t.id}`);
+          const percentEl = document.getElementById(`taskPercent_${t.id}`);
+          const barEl = document.getElementById(`taskBar_${t.id}`);
+          const speedEl = document.getElementById(`taskSpeed_${t.id}`);
+          const etaEl = document.getElementById(`taskEta_${t.id}`);
+          const bytesEl = document.getElementById(`taskBytes_${t.id}`);
+
+          if (statusEl && statusEl.textContent !== t.status) statusEl.textContent = t.status;
+          if (percentEl) percentEl.textContent = `${t.progress}%`;
+          if (barEl) barEl.style.width = `${t.progress}%`;
+          if (speedEl) speedEl.innerHTML = `<i class="fa-solid fa-gauge-high ml-1"></i> ${t.speed || '0 B/s'}`;
+          if (etaEl) etaEl.innerHTML = `<i class="fa-regular fa-clock ml-1"></i> باقی‌مانده: ${t.eta || '--'}`;
+          if (bytesEl) bytesEl.innerHTML = `<i class="fa-solid fa-database ml-1"></i> ${t.downloaded || '0 B'} / ${t.total || '0 B'}`;
+        });
+
+        if (!needFullRebuild) return;
+      }
+
+      list.innerHTML = tasks.map(t => buildTaskCardHtml(t)).join('');
+    }
+
+    async function dismissTask(taskId) {
+      try {
+        await fetch(`/api/tasks/dismiss/${taskId}`, {method: 'POST'});
+        await pollActiveTasks(true);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function clearCompletedTasks() {
+      try {
+        await fetch('/api/tasks/clear-completed', {method: 'POST'});
+        await pollActiveTasks(true);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Lyrics Modal
+    // -------------------------------------------------------------
+    async function openLyricsModal(preferredTab) {
+      if (!currentMediaData) return;
+      document.getElementById('lyricsModal').classList.remove('hidden');
+      document.getElementById('lyricsModalSongTitle').textContent = currentMediaData.title;
+      document.getElementById('lyricsModalArtist').textContent = currentMediaData.artist;
+
+      const area = document.getElementById('lyricsContentArea');
+      area.textContent = 'در حال جستجو و ترجمه خط‌به‌خط لیریکس از دیتابیس...';
+
+      try {
+        const res = await fetch('/api/spotify/lyrics', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            url: currentUrl,
+            title: currentMediaData.title,
+            artist: currentMediaData.artist,
+            duration: currentMediaData.duration_seconds || 0
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.has_lyrics) {
+          area.textContent = data.message || 'متأسفانه لیریکسی برای این آهنگ در دیتابیس یافت نشد.';
+          return;
+        }
+
+        currentLyricsData.fa = data.persian_synced || data.persian_plain;
+        currentLyricsData.en = data.synced_lyrics || data.plain_lyrics;
+        currentLyricsData.bi = data.bilingual;
+
+        switchLyricsTab(preferredTab || 'fa');
+      } catch (err) {
+        area.textContent = 'خطا در ارتباط با سرور لیریکس: ' + err.message;
+      }
+    }
+
+    function switchLyricsTab(tab) {
+      currentLyricsTab = tab;
+      const tFa = document.getElementById('tabFa');
+      const tEn = document.getElementById('tabEn');
+      const tBi = document.getElementById('tabBi');
+      const area = document.getElementById('lyricsContentArea');
+
+      [tFa, tEn, tBi].forEach(btn => {
+        btn.className = 'flex-1 py-2 rounded-lg font-medium text-slate-400 hover:text-white transition';
+      });
+
+      if (tab === 'fa') {
+        tFa.className = 'flex-1 py-2 rounded-lg font-bold transition bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+        area.textContent = currentLyricsData.fa || 'ترجمه فارسی موجود نیست.';
+      } else if (tab === 'en') {
+        tEn.className = 'flex-1 py-2 rounded-lg font-bold transition bg-amber-500/20 text-amber-300 border border-amber-500/30';
+        area.textContent = currentLyricsData.en || 'متن انگلیسی موجود نیست.';
+      } else if (tab === 'bi') {
+        tBi.className = 'flex-1 py-2 rounded-lg font-bold transition bg-indigo-500/20 text-indigo-300 border border-indigo-500/30';
+        area.textContent = currentLyricsData.bi || 'متن دوزبانه موجود نیست.';
+      }
+    }
+
+    function closeLyricsModal() {
+      document.getElementById('lyricsModal').classList.add('hidden');
+    }
+
+    function copyLyricsText() {
+      const text = document.getElementById('lyricsContentArea').textContent;
+      navigator.clipboard.writeText(text);
+      alert('متن ترانه در کلیپ‌بورد کپی شد!');
+    }
+
+    // -------------------------------------------------------------
+    // General Functions
+    // -------------------------------------------------------------
+    async function openDownloadFolder(targetPath = null, btnEl = null) {
+      let origHtml = '';
+      if (btnEl) {
+        origHtml = btnEl.innerHTML;
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-amber-400"></i>';
+      }
+
+      try {
+        const res = await fetch('/api/open-folder', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path: targetPath || null})
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'خطا در باز کردن پوشه');
+
+        if (btnEl) {
+          btnEl.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> <span class="text-[11px] text-emerald-400">باز شد!</span>';
+          setTimeout(() => {
+            btnEl.innerHTML = origHtml;
+            btnEl.disabled = false;
+          }, 2000);
+        }
+
+        const displayPath = data.path || 'پوشه دانلودها';
+        const short = displayPath.length > 45 ? '...' + displayPath.slice(-42) : displayPath;
+        const msg = data.is_file ? `📂 فایل در فایل اکسپلورر انتخاب شد:\n${short}` : `📂 پوشه دانلودها در فایل اکسپلورر باز شد:\n${short}`;
+        
+        showToast(msg, 'success', {
+          label: '<i class="fa-regular fa-copy"></i> کپی مسیر',
+          onClick: () => {
+            navigator.clipboard.writeText(data.path);
+            showToast('مسیر در کلیپ‌بورد کپی شد!', 'info');
+          }
+        });
+      } catch (e) {
+        if (btnEl) {
+          btnEl.innerHTML = origHtml;
+          btnEl.disabled = false;
+        }
+        showToast('خطا در باز کردن پوشه: ' + e.message, 'error');
+      }
+    }
+
+    let allDownloadedFiles = [];
+    let currentDownloadFilter = 'all';
+
+    async function loadRecentDownloads() {
+      try {
+        const res = await fetch('/api/downloads');
+        const data = await res.json();
+        allDownloadedFiles = data.files || [];
+        
+        const countBadge = document.getElementById('recentCountBadge');
+        if (countBadge) {
+          countBadge.textContent = allDownloadedFiles.length;
+        }
+
+        filterRecentDownloads();
+      } catch (e) {
+        console.error('Error loading recent downloads:', e);
+      }
+    }
+
+    function setDownloadFilter(filter) {
+      currentDownloadFilter = filter;
+      const bAll = document.getElementById('filterAllBtn');
+      const bAudio = document.getElementById('filterAudioBtn');
+      const bVideo = document.getElementById('filterVideoBtn');
+
+      const activeClass = 'px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-white transition shadow-sm';
+      const inactiveClass = 'px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition bg-transparent font-normal';
+
+      if (bAll) bAll.className = filter === 'all' ? activeClass : inactiveClass;
+      if (bAudio) bAudio.className = filter === 'audio' ? activeClass : inactiveClass;
+      if (bVideo) bVideo.className = filter === 'video' ? activeClass : inactiveClass;
+
+      filterRecentDownloads();
+    }
+
+    const AUDIO_EXTS = ['mp3', 'm4a', 'wav', 'flac', 'opus', 'ogg'];
+    const VIDEO_EXTS = ['mp4', 'webm', 'mkv', 'mov', 'avi'];
+
+    function filterRecentDownloads() {
+      const q = (document.getElementById('recentSearchInput')?.value || '').trim().toLowerCase();
+      
+      const filtered = allDownloadedFiles.filter(f => {
+        const isAudio = AUDIO_EXTS.includes(f.ext);
+        const isVideo = VIDEO_EXTS.includes(f.ext);
+
+        if (currentDownloadFilter === 'audio' && !isAudio) return false;
+        if (currentDownloadFilter === 'video' && !isVideo) return false;
+
+        if (q) {
+          const matchTitle = (f.title || '').toLowerCase().includes(q);
+          const matchArtist = (f.artist || '').toLowerCase().includes(q);
+          const matchName = (f.name || '').toLowerCase().includes(q);
+          return matchTitle || matchArtist || matchName;
+        }
+        return true;
+      });
+
+      renderFilteredDownloads(filtered);
+    }
+
+    let currentRenderedFiles = [];
+
+    function playDownloadByIndex(idx) {
+      const f = currentRenderedFiles[idx];
+      if (!f) return;
+      playMediaFile(f.path, f.name, f.cover_url || '', f.title || f.name, f.artist || '');
+    }
+
+    function openFolderByIndex(idx, btnEl) {
+      const f = currentRenderedFiles[idx];
+      if (f) openDownloadFolder(f.path, btnEl);
+    }
+
+    function deleteFileByIndex(idx) {
+      const f = currentRenderedFiles[idx];
+      if (f) deleteFile(f.path, f.name);
+    }
+
+    function renderFilteredDownloads(files) {
+      const container = document.getElementById('recentList');
+      if (!container) return;
+
+      currentRenderedFiles = files || [];
+
+      if (!files || files.length === 0) {
+        const emptyMsg = allDownloadedFiles.length === 0 
+          ? 'هنوز فایلی دانلود نشده است.'
+          : 'فایلی مطابق با جستجو یا فیلتر انتخاب‌شده یافت نشد.';
+        container.innerHTML = `<div class="p-8 text-center text-xs text-slate-500 rounded-xl bg-slate-900/30 border border-slate-800/60"><i class="fa-solid fa-inbox text-xl mb-2 text-slate-600 block"></i>${emptyMsg}</div>`;
+        return;
+      }
+
+      container.innerHTML = files.map((f, idx) => {
+        const isAudio = AUDIO_EXTS.includes(f.ext);
+        const isVideo = VIDEO_EXTS.includes(f.ext);
+        const isLrc = ['lrc', 'txt', 'srt'].includes(f.ext);
+        const canPlay = isAudio || isVideo;
+        const coverUrl = f.cover_url || '';
+
+        // Badge styling for format
+        let extBadge = `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-400 border border-slate-700">${(f.ext || '').toUpperCase()}</span>`;
+        if (f.ext === 'mp3') {
+          extBadge = `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">MP3</span>`;
+        } else if (f.ext === 'mp4') {
+          extBadge = `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">MP4</span>`;
+        } else if (f.ext === 'm4a') {
+          extBadge = `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">M4A</span>`;
+        } else if (f.ext === 'opus' || f.ext === 'ogg') {
+          extBadge = `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-teal-500/15 text-teal-400 border border-teal-500/30">OPUS</span>`;
+        }
+
+        const fallbackIcon = isAudio ? 'fa-music text-sp' : (isVideo ? 'fa-file-video text-yt' : 'fa-file-lines text-amber-400');
+
+        return `
+          <div class="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition gap-3 group/item">
+            <div class="flex items-center gap-3 overflow-hidden min-w-0">
+              <!-- Real Cover Thumbnail with Centered Fallback & Hover Play -->
+              <div class="relative w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 flex-shrink-0 overflow-hidden group/thumb flex items-center justify-center shadow-md">
+                ${coverUrl ? `
+                  <img src="${coverUrl}" alt="" loading="lazy" class="w-full h-full object-cover transition duration-300 group-hover/thumb:scale-105" onerror="this.classList.add('hidden'); this.nextElementSibling.style.display='flex';">
+                  <div class="w-full h-full items-center justify-center bg-slate-900 text-slate-400" style="display: none;">
+                    <i class="fa-solid ${fallbackIcon} text-base"></i>
+                  </div>
+                ` : `
+                  <div class="w-full h-full flex items-center justify-center bg-slate-900 text-slate-400">
+                    <i class="fa-solid ${fallbackIcon} text-base"></i>
+                  </div>
+                `}
+                ${canPlay ? `
+                  <div onclick="playDownloadByIndex(${idx})" class="absolute inset-0 bg-black/60 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center cursor-pointer transition" title="پخش این فایل">
+                    <i class="fa-solid fa-play text-white text-xs"></i>
+                  </div>
+                ` : ''}
+              </div>
+
+              <!-- Metadata Info -->
+              <div class="truncate min-w-0">
+                <div class="flex items-center gap-2 truncate">
+                  <span class="font-bold text-slate-100 text-xs sm:text-sm truncate" title="${f.title || f.name}">${f.title || f.name}</span>
+                  ${extBadge}
+                </div>
+                <div class="text-[11px] text-slate-400 truncate mt-0.5 flex items-center gap-2">
+                  <span class="truncate">${f.artist ? f.artist : f.name}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Size & Action Buttons -->
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="font-mono text-slate-400 text-[11px] hidden sm:inline ml-1">${f.size}</span>
+              ${canPlay ? `
+                <button onclick="playDownloadByIndex(${idx})" class="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-black transition flex items-center gap-1.5 border border-emerald-500/30 active:scale-95 font-bold text-xs" title="پخش مستقیم درون نرم‌افزار">
+                  <i class="fa-solid fa-play text-[11px]"></i>
+                  <span class="text-[11px] hidden md:inline">پخش</span>
+                </button>
+              ` : ''}
+              <button onclick="openFolderByIndex(${idx}, this)" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5 border border-slate-700/60 active:scale-95 text-xs" title="نمایش و انتخاب این فایل در ویندوز اکسپلورر">
+                <i class="fa-regular fa-folder-open text-amber-400"></i>
+              </button>
+              <button onclick="deleteFileByIndex(${idx})" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition flex items-center border border-slate-700/60 active:scale-95 text-xs" title="حذف این فایل">
+                <i class="fa-regular fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function previewSubtitles(lang) {
+      if (!currentUrl) return;
+      document.getElementById('subModal').classList.remove('hidden');
+      document.getElementById('subModalContent').textContent = 'در حال استخراج و دریافت متن زیرنویس...';
+
+      try {
+        const res = await fetch('/api/subtitles/preview', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({url: currentUrl, lang})
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'عدم دریافت متن');
+        document.getElementById('subModalContent').textContent = data.content;
+      } catch (e) {
+        document.getElementById('subModalContent').textContent = 'خطا در دریافت متن: ' + e.message;
+      }
+    }
+
+    function closeSubModal() {
+      document.getElementById('subModal').classList.add('hidden');
+    }
+
+    function copySubText() {
+      const text = document.getElementById('subModalContent').textContent;
+      navigator.clipboard.writeText(text);
+      alert('متن زیرنویس در کلیپ‌بورد کپی شد!');
+    }
+
+    function setLoading(isLoading) {
+      const btn = document.getElementById('submitBtn');
+      const text = document.getElementById('btnText');
+      const spinner = document.getElementById('btnSpinner');
+      btn.disabled = isLoading;
+      if (isLoading) {
+        text.textContent = 'در حال پردازش...';
+        spinner.classList.remove('hidden');
+      } else {
+        text.textContent = 'بررسی و استخراج';
+        spinner.classList.add('hidden');
+      }
+    }
+
+    async function checkProxyStatus() {
+      try {
+        const res = await fetch('/api/proxy-status');
+        const data = await res.json();
+        const textEl = document.getElementById('proxyStatusText');
+        const dotEl = document.getElementById('proxyDot');
+        if (data.is_direct) {
+          textEl.textContent = 'اتصال: مستقیم (VPN/Warp)';
+          dotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+        } else {
+          textEl.textContent = `${data.active}`;
+          dotEl.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400';
+        }
+      } catch (e) {
+        console.error('Error fetching proxy status:', e);
+      }
+    }
+
+    function openProxyModal() {
+      document.getElementById('proxyModal').classList.remove('hidden');
+    }
+    function closeProxyModal() {
+      document.getElementById('proxyModal').classList.add('hidden');
+    }
+    function toggleProxyInput() {
+      const mode = document.querySelector('input[name="proxyMode"]:checked').value;
+      const box = document.getElementById('customProxyBox');
+      if (mode === 'custom') {
+        box.classList.remove('hidden');
+      } else {
+        box.classList.add('hidden');
+      }
+    }
+    async function saveProxySettings() {
+      const mode = document.querySelector('input[name="proxyMode"]:checked').value;
+      let target = mode;
+      if (mode === 'custom') {
+        target = document.getElementById('customProxyInput').value.trim();
+        if (!target) return alert('لطفاً آدرس پروکسی را وارد کنید');
+      }
+      try {
+        const res = await fetch('/api/proxy-config', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({mode: target})
+        });
+        const data = await res.json();
+        closeProxyModal();
+        checkProxyStatus();
+        alert('تنظیمات شبکه با موفقیت اعمال شد: ' + data.mode_label);
+      } catch (e) {
+        alert('خطا در ذخیره تنظیمات: ' + e.message);
+      }
+    }
+
+    async function loadFolderConfig() {
+      try {
+        const res = await fetch('/api/folder-config');
+        const data = await res.json();
+        const label = document.getElementById('folderBtnLabel');
+        const modalPath = document.getElementById('modalCurrentPathDisplay');
+        if (label) {
+          const trimmed = (data.current_path || '').replace(/[\\/]+$/, '');
+          const parts = trimmed.split(/[\\/]/);
+          label.textContent = parts[parts.length - 1] || 'پوشه دانلود';
+          label.title = data.current_path;
+        }
+        if (modalPath) modalPath.textContent = data.current_path;
+      } catch (e) {
+        console.error('Error loading folder config:', e);
+      }
+    }
+
+    function openFolderModal() {
+      loadFolderConfig();
+      document.getElementById('folderModal').classList.remove('hidden');
+    }
+
+    function closeFolderModal() {
+      document.getElementById('folderModal').classList.add('hidden');
+    }
+
+    async function onNativeFolderChosen(selectedPath) {
+      if (!selectedPath) return;
+      try {
+        const res = await fetch('/api/set-folder', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path: selectedPath})
+        });
+        const data = await res.json();
+        if (res.ok) {
+          await loadFolderConfig();
+          loadRecentDownloads();
+          closeFolderModal();
+          showToast('✅ مسیر ذخیره دانلودها تغییر کرد و به خاطر سپرده شد', 'success', {
+            label: '📂 باز کردن',
+            onClick: () => openDownloadFolder(selectedPath)
+          });
+        }
+      } catch (e) {
+        showToast('خطا در ذخیره مسیر: ' + e.message, 'error');
+      }
+    }
+    window.onNativeFolderChosen = onNativeFolderChosen;
+
+    async function pickFolderWithWindowsDialog() {
+      if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage("pick_folder");
+        return;
+      }
+      const btn = document.getElementById('btnPickNative');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> در حال باز کردن پنجره ویندوز...';
+      try {
+        const res = await fetch('/api/select-folder-dialog', { method: 'POST' });
+        const data = await res.json();
+        if (data.selected) {
+          await loadFolderConfig();
+          loadRecentDownloads();
+          closeFolderModal();
+          showToast('✅ مسیر دانلود تغییر یافت: ' + data.current_path, 'success', {
+            label: '📂 باز کردن',
+            onClick: () => openDownloadFolder(data.current_path)
+          });
+        }
+      } catch (e) {
+        showToast('خطا در انتخاب پوشه: ' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-arrow-pointer"></i> <span>انتخاب پوشه (Browse Folder...)</span>';
+      }
+    }
+
+    async function resetDefaultFolder() {
+      if (!confirm('آیا مایل به بازنشانی مسیر ذخیره به پوشه پیش‌فرض هستید؟')) return;
+      try {
+        const res = await fetch('/api/reset-folder', { method: 'POST' });
+        const data = await res.json();
+        await loadFolderConfig();
+        loadRecentDownloads();
+        closeFolderModal();
+        showToast('✅ ' + data.message, 'success');
+      } catch (e) {
+        showToast('خطا در بازنشانی پوشه: ' + e.message, 'error');
+      }
+    }
+
+    // ==========================================
+    // SPOTIFY-STYLE BOTTOM DOCK PLAYER LOGIC (LUXURY EDITION)
+    // ==========================================
+    let currentPlayingPath = '';
+    let currentPlaylistQueue = [];
+    let currentQueueIndex = -1;
+    let repeatMode = 'off'; // 'off' | 'all' | 'one'
+    let preMuteVolume = 1;
+
+    const bottomAudio = document.getElementById('bottomAudio');
+    const bottomPlayerBar = document.getElementById('bottomPlayerBar');
+    const playerPlayIcon = document.getElementById('playerPlayIcon');
+    const playerScrubber = document.getElementById('playerScrubber');
+    const scrubberTooltip = document.getElementById('scrubberTooltip');
+    const playerCurrentTime = document.getElementById('playerCurrentTime');
+    const playerTotalDuration = document.getElementById('playerTotalDuration');
+    const playerVolume = document.getElementById('playerVolume');
+    const volumeIcon = document.getElementById('volumeIcon');
+    const playerCoverImg = document.getElementById('playerCoverImg');
+    const playerFallbackIcon = document.getElementById('playerFallbackIcon');
+    const playerVisualizer = document.getElementById('playerVisualizer');
+    const playerRepeatBtn = document.getElementById('playerRepeatBtn');
+    const repeatOneBadge = document.getElementById('repeatOneBadge');
+    const repeatDot = document.getElementById('repeatDot');
+
+    function formatTime(seconds) {
+      if (!seconds || isNaN(seconds)) return '00:00';
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function setVisualizerState(isPlaying) {
+      if (!playerVisualizer) return;
+      if (isPlaying) {
+        playerVisualizer.classList.remove('opacity-30');
+        playerVisualizer.classList.add('opacity-100');
+      } else {
+        playerVisualizer.classList.remove('opacity-100');
+        playerVisualizer.classList.add('opacity-30');
+      }
+    }
+
+    function updateVolumeIcon(val) {
+      if (!volumeIcon) return;
+      if (val == 0 || bottomAudio.muted) {
+        volumeIcon.className = 'fa-solid fa-volume-xmark text-rose-400 text-xs';
+      } else if (val < 0.5) {
+        volumeIcon.className = 'fa-solid fa-volume-low text-slate-400 text-xs';
+      } else {
+        volumeIcon.className = 'fa-solid fa-volume-high text-slate-400 text-xs';
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Dynamic Ambient Glow & Palette Extraction
+    // -------------------------------------------------------------
+    function extractPaletteFromImage(imgElement) {
+      try {
+        if (!imgElement || !imgElement.naturalWidth || !imgElement.naturalHeight) return null;
+        const canvas = document.createElement('canvas');
+        canvas.width = 16;
+        canvas.height = 16;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(imgElement, 0, 0, 16, 16);
+        const data = ctx.getImageData(0, 0, 16, 16).data;
+
+        let totalR = 0, totalG = 0, totalB = 0, validPixels = 0;
+        let maxSaturation = -1;
+        let vibrantR = 30, vibrantG = 215, vibrantB = 96; // Spotify signature emerald fallback
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const a = data[i + 3];
+          if (a < 128) continue;
+
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const sat = max === 0 ? 0 : (max - min) / 255;
+          const brightness = max / 255;
+
+          // Reject pitch black and pure white to extract rich vibrant hue
+          if (brightness > 0.15 && brightness < 0.92 && sat > maxSaturation) {
+            maxSaturation = sat;
+            vibrantR = r;
+            vibrantG = g;
+            vibrantB = b;
+          }
+
+          totalR += r;
+          totalG += g;
+          totalB += b;
+          validPixels++;
+        }
+
+        if (validPixels > 0 && maxSaturation < 0.15) {
+          vibrantR = Math.round(totalR / validPixels);
+          vibrantG = Math.round(totalG / validPixels);
+          vibrantB = Math.round(totalB / validPixels);
+        }
+
+        return { r: vibrantR, g: vibrantG, b: vibrantB };
+      } catch (e) {
+        console.debug('Palette extraction skipped:', e);
+        return null;
+      }
+    }
+
+    function applyDynamicTheme(coverImgEl) {
+      const glowEl = document.getElementById('playerAmbientGlow');
+      const bar = document.getElementById('bottomPlayerBar');
+      if (!glowEl || !bar) return;
+
+      const color = extractPaletteFromImage(coverImgEl);
+      if (!color) {
+        resetDynamicTheme();
+        return;
+      }
+
+      const { r, g, b } = color;
+      glowEl.style.background = `radial-gradient(ellipse at 20% 50%, rgba(${r}, ${g}, ${b}, 0.42) 0%, rgba(${r}, ${g}, ${b}, 0.12) 55%, transparent 85%)`;
+      glowEl.style.opacity = '1';
+
+      bar.style.boxShadow = `0 16px 50px rgba(${r}, ${g}, ${b}, 0.32), 0 4px 25px rgba(0, 0, 0, 0.85)`;
+      bar.style.borderColor = `rgba(${r}, ${g}, ${b}, 0.45)`;
+
+      const scrubber = document.getElementById('playerScrubber');
+      if (scrubber) scrubber.style.accentColor = `rgb(${r}, ${g}, ${b})`;
+
+      const playBtn = document.getElementById('playerPlayBtn');
+      if (playBtn) {
+        playBtn.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+        playBtn.style.boxShadow = `0 4px 20px rgba(${r}, ${g}, ${b}, 0.45)`;
+      }
+    }
+
+    function resetDynamicTheme() {
+      const glowEl = document.getElementById('playerAmbientGlow');
+      const bar = document.getElementById('bottomPlayerBar');
+      if (glowEl) glowEl.style.opacity = '0';
+      if (bar) {
+        bar.style.boxShadow = '0 12px 45px rgba(0,0,0,0.85)';
+        bar.style.borderColor = 'rgba(51, 65, 85, 0.8)';
+      }
+      const scrubber = document.getElementById('playerScrubber');
+      if (scrubber) scrubber.style.accentColor = '';
+      const playBtn = document.getElementById('playerPlayBtn');
+      if (playBtn) {
+        playBtn.style.backgroundColor = '';
+        playBtn.style.boxShadow = '';
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Windows SMTC (System Media Transport Controls) & Media Keys
+    // -------------------------------------------------------------
+    let mediaSessionInitialized = false;
+
+    function initWindowsMediaSession() {
+      if (!('mediaSession' in navigator) || mediaSessionInitialized) return;
+      mediaSessionInitialized = true;
+
+      const actions = [
+        ['play', () => { bottomAudio.play(); }],
+        ['pause', () => { bottomAudio.pause(); }],
+        ['previoustrack', () => { playPrevTrack(); }],
+        ['nexttrack', () => { playNextTrack(); }],
+        ['seekbackward', (details) => { seekMedia(-(details.seekOffset || 10)); }],
+        ['seekforward', (details) => { seekMedia(details.seekOffset || 10); }],
+        ['stop', () => { closeBottomPlayer(); }]
+      ];
+
+      for (const [action, handler] of actions) {
+        try {
+          navigator.mediaSession.setActionHandler(action, handler);
+        } catch (e) {
+          console.debug(`MediaSession action ${action} not supported:`, e);
+        }
+      }
+    }
+
+    function updateWindowsMediaSession(title, artist, coverUrl) {
+      if (!('mediaSession' in navigator)) return;
+      initWindowsMediaSession();
+
+      const artwork = [];
+      if (coverUrl) {
+        const absCover = new URL(coverUrl, window.location.origin).href;
+        artwork.push(
+          { src: absCover, sizes: '96x96', type: 'image/jpeg' },
+          { src: absCover, sizes: '128x128', type: 'image/jpeg' },
+          { src: absCover, sizes: '256x256', type: 'image/jpeg' },
+          { src: absCover, sizes: '512x512', type: 'image/jpeg' }
+        );
+      }
+
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: title || 'قطعه صوتی',
+        artist: artist || 'YouTube & Spotify Downloader',
+        album: 'دانلود شده‌های آفلاین',
+        artwork: artwork
+      });
+
+      navigator.mediaSession.playbackState = bottomAudio.paused ? 'paused' : 'playing';
+    }
+
+    function syncPlayerQueue(targetPath) {
+      currentPlaylistQueue = allDownloadedFiles.filter(f => ['mp3', 'm4a', 'wav', 'flac', 'opus', 'ogg', 'mp4', 'webm', 'mkv'].includes(f.ext));
+      currentQueueIndex = currentPlaylistQueue.findIndex(f => f.path === targetPath);
+    }
+
+    function playMediaFile(filePath, fileName, coverUrl = '', title = '', artist = '') {
+      currentPlayingPath = filePath;
+      const streamUrl = `/api/media/stream?path=${encodeURIComponent(filePath)}`;
+      
+      const displayName = title || fileName;
+      const displayArtist = artist || 'پخش زنده درون‌برنامه‌ای';
+
+      const titleEl = document.getElementById('playerTitle');
+      const artistEl = document.getElementById('playerArtist');
+      if (titleEl) {
+        titleEl.textContent = displayName;
+        titleEl.title = displayName;
+      }
+      if (artistEl) {
+        artistEl.textContent = displayArtist;
+        artistEl.title = displayArtist;
+      }
+
+      const folderBtn = document.getElementById('playerFolderBtn');
+      if (folderBtn) {
+        folderBtn.onclick = () => openDownloadFolder(filePath);
+      }
+
+      // Set Cover Thumbnail & Extract Dynamic Palette
+      if (playerCoverImg && playerFallbackIcon) {
+        if (coverUrl) {
+          playerCoverImg.crossOrigin = 'anonymous';
+          playerCoverImg.onload = () => {
+            applyDynamicTheme(playerCoverImg);
+          };
+          playerCoverImg.src = coverUrl;
+          playerCoverImg.classList.remove('hidden');
+          playerFallbackIcon.classList.add('hidden');
+        } else {
+          playerCoverImg.src = '';
+          playerCoverImg.classList.add('hidden');
+          playerFallbackIcon.classList.remove('hidden');
+          resetDynamicTheme();
+        }
+      }
+
+      // Update Windows Media Session (SMTC & Volume Flyout)
+      updateWindowsMediaSession(displayName, displayArtist, coverUrl);
+
+      // Show Visualizer
+      if (playerVisualizer) {
+        playerVisualizer.classList.remove('hidden');
+        playerVisualizer.classList.add('flex');
+      }
+
+      // Rebuild and sync queue index
+      syncPlayerQueue(filePath);
+
+      bottomAudio.src = streamUrl;
+      bottomAudio.play().then(() => {
+        if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-pause text-xs';
+        setVisualizerState(true);
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+      }).catch(err => {
+        console.warn('Auto-play caught:', err);
+      });
+
+      bottomPlayerBar.classList.remove('hidden');
+      document.body.classList.add('pb-28');
+    }
+
+    function toggleBottomPlay() {
+      if (!bottomAudio.src) return;
+      if (bottomAudio.paused) {
+        bottomAudio.play();
+        if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-pause text-xs';
+        setVisualizerState(true);
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+      } else {
+        bottomAudio.pause();
+        if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-play text-xs ml-0.5';
+        setVisualizerState(false);
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+      }
+    }
+
+    function seekMedia(deltaSeconds) {
+      if (!bottomAudio.duration) return;
+      bottomAudio.currentTime = Math.max(0, Math.min(bottomAudio.duration, bottomAudio.currentTime + deltaSeconds));
+    }
+
+    function playNextTrack() {
+      if (currentPlaylistQueue.length === 0) {
+        syncPlayerQueue(currentPlayingPath);
+      }
+      if (currentPlaylistQueue.length === 0) return;
+
+      currentQueueIndex = (currentQueueIndex + 1) % currentPlaylistQueue.length;
+      const nextItem = currentPlaylistQueue[currentQueueIndex];
+      if (nextItem) {
+        playMediaFile(nextItem.path, nextItem.name, nextItem.cover_url || '', nextItem.title || nextItem.name, nextItem.artist || '');
+        showToast(`⏭️ در حال پخش: «${nextItem.title || nextItem.name}»`, 'info');
+      }
+    }
+
+    function playPrevTrack() {
+      if (bottomAudio && bottomAudio.currentTime > 3) {
+        bottomAudio.currentTime = 0;
+        return;
+      }
+      if (currentPlaylistQueue.length === 0) {
+        syncPlayerQueue(currentPlayingPath);
+      }
+      if (currentPlaylistQueue.length === 0) return;
+
+      currentQueueIndex = (currentQueueIndex - 1 + currentPlaylistQueue.length) % currentPlaylistQueue.length;
+      const prevItem = currentPlaylistQueue[currentQueueIndex];
+      if (prevItem) {
+        playMediaFile(prevItem.path, prevItem.name, prevItem.cover_url || '', prevItem.title || prevItem.name, prevItem.artist || '');
+        showToast(`⏮️ در حال پخش: «${prevItem.title || prevItem.name}»`, 'info');
+      }
+    }
+
+    function toggleRepeatMode() {
+      if (repeatMode === 'off') {
+        repeatMode = 'all';
+        if (repeatOneBadge) repeatOneBadge.classList.add('hidden');
+        if (repeatDot) repeatDot.classList.remove('hidden');
+        if (playerRepeatBtn) {
+          playerRepeatBtn.className = 'text-sp transition relative p-1.5 active:scale-95';
+          playerRepeatBtn.title = 'حالت تکرار: کل لیست (L)';
+        }
+        showToast('🔁 تکرار: تمام فایل‌های لیست', 'info');
+      } else if (repeatMode === 'all') {
+        repeatMode = 'one';
+        if (repeatOneBadge) repeatOneBadge.classList.remove('hidden');
+        if (repeatDot) repeatDot.classList.add('hidden');
+        if (playerRepeatBtn) {
+          playerRepeatBtn.className = 'text-sp transition relative p-1.5 active:scale-95';
+          playerRepeatBtn.title = 'حالت تکرار: همین قطعه (L)';
+        }
+        showToast('🔂 تکرار: همین قطعه', 'info');
+      } else {
+        repeatMode = 'off';
+        if (repeatOneBadge) repeatOneBadge.classList.add('hidden');
+        if (repeatDot) repeatDot.classList.add('hidden');
+        if (playerRepeatBtn) {
+          playerRepeatBtn.className = 'text-slate-400 hover:text-white transition relative p-1.5 active:scale-95';
+          playerRepeatBtn.title = 'حالت تکرار (L) - خاموش';
+        }
+        showToast('➡️ تکرار: خاموش', 'info');
+      }
+    }
+
+    function toggleMute() {
+      if (bottomAudio.muted || bottomAudio.volume === 0) {
+        bottomAudio.muted = false;
+        bottomAudio.volume = preMuteVolume || 0.8;
+        if (playerVolume) playerVolume.value = bottomAudio.volume;
+        updateVolumeIcon(bottomAudio.volume);
+        showToast('🔊 صدا وصل شد', 'info');
+      } else {
+        preMuteVolume = bottomAudio.volume || 0.8;
+        bottomAudio.muted = true;
+        if (playerVolume) playerVolume.value = 0;
+        updateVolumeIcon(0);
+        showToast('🔇 صدا قطع شد', 'info');
+      }
+    }
+
+    function closeBottomPlayer() {
+      bottomAudio.pause();
+      bottomAudio.src = '';
+      bottomPlayerBar.classList.add('hidden');
+      document.body.classList.remove('pb-28');
+      setVisualizerState(false);
+      resetDynamicTheme();
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
+    }
+
+    if (bottomAudio) {
+      bottomAudio.addEventListener('timeupdate', () => {
+        if (!bottomAudio.duration) return;
+        const pct = (bottomAudio.currentTime / bottomAudio.duration) * 100;
+        if (playerScrubber) playerScrubber.value = pct;
+        if (playerCurrentTime) playerCurrentTime.textContent = formatTime(bottomAudio.currentTime);
+        if (playerTotalDuration) playerTotalDuration.textContent = formatTime(bottomAudio.duration);
+      });
+
+      bottomAudio.addEventListener('play', () => {
+        if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-pause text-xs';
+        setVisualizerState(true);
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+      });
+
+      bottomAudio.addEventListener('pause', () => {
+        if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-play text-xs ml-0.5';
+        setVisualizerState(false);
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+      });
+
+      bottomAudio.addEventListener('ended', () => {
+        if (repeatMode === 'one') {
+          bottomAudio.currentTime = 0;
+          bottomAudio.play();
+        } else if (repeatMode === 'all') {
+          playNextTrack();
+        } else {
+          // Off mode: play next if available, otherwise stop
+          if (currentQueueIndex >= 0 && currentQueueIndex < currentPlaylistQueue.length - 1) {
+            playNextTrack();
+          } else {
+            if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-play text-xs ml-0.5';
+            setVisualizerState(false);
+            if (playerScrubber) playerScrubber.value = 0;
+          }
+        }
+      });
+    }
+
+    if (playerScrubber) {
+      playerScrubber.addEventListener('input', (e) => {
+        if (!bottomAudio.duration) return;
+        bottomAudio.currentTime = (e.target.value / 100) * bottomAudio.duration;
+      });
+
+      playerScrubber.addEventListener('mousemove', (e) => {
+        if (!bottomAudio.duration || !scrubberTooltip) return;
+        const rect = playerScrubber.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const hoverSec = ratio * bottomAudio.duration;
+        scrubberTooltip.textContent = formatTime(hoverSec);
+        scrubberTooltip.style.left = `${ratio * 100}%`;
+        scrubberTooltip.classList.remove('hidden');
+      });
+
+      playerScrubber.addEventListener('mouseleave', () => {
+        if (scrubberTooltip) scrubberTooltip.classList.add('hidden');
+      });
+    }
+
+    if (playerVolume) {
+      playerVolume.addEventListener('input', (e) => {
+        bottomAudio.volume = e.target.value;
+        bottomAudio.muted = (e.target.value == 0);
+        updateVolumeIcon(e.target.value);
+      });
+    }
+
+    function togglePlayerDirection() {
+      const bar = document.getElementById('bottomPlayerBar');
+      if (!bar) return;
+      const current = bar.getAttribute('dir') || 'ltr';
+      const next = current === 'ltr' ? 'rtl' : 'ltr';
+      setPlayerDirection(next);
+      localStorage.setItem('player_direction', next);
+      showToast(next === 'ltr' ? 'جهت نوار: استاندارد چپ‌به‌راست (Spotify)' : 'جهت نوار: فارسی راست‌به‌چپ (RTL)', 'info');
+    }
+
+    function setPlayerDirection(dir) {
+      const bar = document.getElementById('bottomPlayerBar');
+      if (!bar) return;
+      bar.setAttribute('dir', dir);
+      const metaBox = document.getElementById('playerMetaBox');
+      if (metaBox) {
+        metaBox.className = dir === 'ltr' ? 'min-w-0 text-left' : 'min-w-0 text-right';
+      }
+      const scrubber = document.getElementById('playerScrubber');
+      const volume = document.getElementById('playerVolume');
+      if (scrubber) scrubber.style.direction = dir;
+      if (volume) volume.style.direction = dir;
+      const toggleBtn = document.getElementById('playerDirToggleBtn');
+      if (toggleBtn) {
+        toggleBtn.title = dir === 'ltr' ? 'تغییر به حالت راست‌به‌چپ (فارسی)' : 'تغییر به حالت چپ‌به‌راست (استاندارد اسپاتیفای)';
+      }
+    }
+
+    // Initialize player direction (default LTR)
+    try {
+      const savedPlayerDir = localStorage.getItem('player_direction') || 'ltr';
+      setPlayerDirection(savedPlayerDir);
+    } catch (e) {
+      setPlayerDirection('ltr');
+    }
+
+    // Global Luxury Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        activeEl.tagName === 'SELECT' || 
+        activeEl.isContentEditable
+      );
+      if (isInput) return;
+
+      // Space: Play / Pause
+      if (e.code === 'Space') {
+        e.preventDefault();
+        toggleBottomPlay();
+        return;
+      }
+
+      // Left Arrow: -10s rewind
+      if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        seekMedia(-10);
+        return;
+      }
+
+      // Right Arrow: +10s forward
+      if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        seekMedia(10);
+        return;
+      }
+
+      // Up Arrow: Volume Up
+      if (e.code === 'ArrowUp') {
+        e.preventDefault();
+        if (bottomAudio) {
+          bottomAudio.muted = false;
+          bottomAudio.volume = Math.min(1, bottomAudio.volume + 0.05);
+          if (playerVolume) playerVolume.value = bottomAudio.volume;
+          updateVolumeIcon(bottomAudio.volume);
+        }
+        return;
+      }
+
+      // Down Arrow: Volume Down
+      if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        if (bottomAudio) {
+          bottomAudio.volume = Math.max(0, bottomAudio.volume - 0.05);
+          if (playerVolume) playerVolume.value = bottomAudio.volume;
+          updateVolumeIcon(bottomAudio.volume);
+        }
+        return;
+      }
+
+      // M: Mute toggle
+      if (e.key === 'm' || e.key === 'M') {
+        toggleMute();
+        return;
+      }
+
+      // L: Repeat mode toggle
+      if (e.key === 'l' || e.key === 'L') {
+        toggleRepeatMode();
+        return;
+      }
+
+      // N: Next track
+      if (e.key === 'n' || e.key === 'N') {
+        playNextTrack();
+        return;
+      }
+
+      // P: Previous track
+      if (e.key === 'p' || e.key === 'P') {
+        playPrevTrack();
+        return;
+      }
+
+      // Escape: Close open modals first, otherwise close bottom player
+      if (e.key === 'Escape') {
+        const modals = ['lyricsModal', 'folderModal', 'proxyModal', 'subModal'];
+        const openModal = modals.map(id => document.getElementById(id)).find(el => el && !el.classList.contains('hidden'));
+        if (openModal) {
+          openModal.classList.add('hidden');
+          return;
+        }
+        closeBottomPlayer();
+        return;
+      }
+    });
+
+    async function deleteFile(filePath, fileName) {
+      if (!confirm(`آیا از حذف فایل "${fileName}" اطمینان دارید؟`)) return;
+      try {
+        const res = await fetch('/api/downloads/delete', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path: filePath})
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'خطا در حذف');
+        showToast('فایل با موفقیت حذف شد', 'success');
+        if (currentPlayingPath === filePath) {
+          closeBottomPlayer();
+        }
+        loadRecentDownloads();
+      } catch (e) {
+        showToast('خطا در حذف فایل: ' + e.message, 'error');
+      }
+    }
+
+    async function cancelTask(taskId) {
+      try {
+        const res = await fetch(`/api/tasks/cancel/${taskId}`, {method: 'POST'});
+        if (res.ok) {
+          showToast('دانلود متوقف شد', 'info');
+          pollActiveTasks(true);
+        }
+      } catch (e) {
+        showToast('خطا در لغو: ' + e.message, 'error');
+      }
+    }
+
+    // Initial load
+    loadRecentDownloads();
+    checkProxyStatus();
+    loadFolderConfig();
+    pollActiveTasks(true);
+  </script>
+</body>
+</html>
