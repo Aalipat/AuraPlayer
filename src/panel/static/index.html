@@ -827,12 +827,13 @@
     </div>
 
     <!-- Right Controls (Volume, Lyrics, MiniPlayer, Folder, Direction Toggle, Close) -->
-    <div class="relative z-10 flex items-center justify-end gap-1.5 w-1/4 min-w-[190px]">
+    <div class="relative z-10 flex items-center justify-end gap-1.5 w-1/4 min-w-[210px] md:min-w-[260px]">
       <div class="hidden sm:flex items-center gap-2">
         <button id="playerMuteBtn" onclick="toggleMute()" class="text-slate-400 hover:text-white transition p-1" title="قطع / وصل صدا (M)">
           <i id="volumeIcon" class="fa-solid fa-volume-high text-xs"></i>
         </button>
-        <input type="range" id="playerVolume" min="0" max="1" step="0.02" value="1" class="w-14 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sp">
+        <input type="range" id="playerVolume" min="0" max="1" step="0.01" value="1" class="w-20 sm:w-28 md:w-36 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sp transition-all duration-150" title="تنظیم بلندی صدا">
+        <span id="volumePercentText" class="text-[11px] font-mono text-emerald-400 font-bold w-9 text-center select-none" title="درصد صدا">100%</span>
       </div>
       <button id="playerLyricsBtn" onclick="toggleLyricsSidebar()" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 text-xs transition active:scale-95" title="متن ترانه / لیریکس زنده سبک اسپاتیفای (L)">
         <i class="fa-solid fa-microphone-lines text-xs"></i>
@@ -2386,13 +2387,23 @@
     }
 
     function updateVolumeIcon(val) {
-      if (!volumeIcon) return;
-      if (val == 0 || bottomAudio.muted) {
-        volumeIcon.className = 'fa-solid fa-volume-xmark text-rose-400 text-xs';
-      } else if (val < 0.5) {
-        volumeIcon.className = 'fa-solid fa-volume-low text-slate-400 text-xs';
-      } else {
-        volumeIcon.className = 'fa-solid fa-volume-high text-slate-400 text-xs';
+      const volText = document.getElementById('volumePercentText');
+      const isMuted = val == 0 || (bottomAudio && bottomAudio.muted);
+      if (volumeIcon) {
+        if (isMuted) {
+          volumeIcon.className = 'fa-solid fa-volume-xmark text-rose-400 text-xs';
+        } else if (val < 0.5) {
+          volumeIcon.className = 'fa-solid fa-volume-low text-slate-400 text-xs';
+        } else {
+          volumeIcon.className = 'fa-solid fa-volume-high text-slate-400 text-xs';
+        }
+      }
+      if (volText) {
+        const pct = isMuted ? 0 : Math.round(val * 100);
+        volText.textContent = pct + '%';
+        volText.className = isMuted
+          ? 'text-[11px] font-mono text-rose-400 font-bold w-9 text-center select-none'
+          : 'text-[11px] font-mono text-emerald-400 font-bold w-9 text-center select-none';
       }
     }
 
@@ -2842,9 +2853,19 @@
 
     if (playerVolume) {
       playerVolume.addEventListener('input', (e) => {
-        bottomAudio.volume = e.target.value;
-        bottomAudio.muted = (e.target.value == 0);
-        updateVolumeIcon(e.target.value);
+        const val = parseFloat(e.target.value);
+        bottomAudio.volume = val;
+        bottomAudio.muted = (val === 0);
+        updateVolumeIcon(val);
+      });
+      playerVolume.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.05 : -0.05;
+        const newVol = Math.min(1, Math.max(0, (bottomAudio.volume || 0) + delta));
+        bottomAudio.volume = newVol;
+        bottomAudio.muted = (newVol === 0);
+        playerVolume.value = newVol;
+        updateVolumeIcon(newVol);
       });
     }
 
