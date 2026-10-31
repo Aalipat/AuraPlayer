@@ -8,6 +8,9 @@ import json
 from pathlib import Path
 import httpx
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DIST_DIR = ROOT_DIR / "dist"
 VERSION_FILE = ROOT_DIR / "version.json"
@@ -32,17 +35,19 @@ def main():
         except Exception:
             pass
 
-    tag = f"v{current_ver}" if not sys.argv[1:2] else sys.argv[1]
-    title = f"AuraPlayer {tag} ⚡" if not sys.argv[2:3] else sys.argv[2]
-    description = (
+    tag = f"v{current_ver}" if len(sys.argv) < 2 else sys.argv[1]
+    title = f"AuraPlayer {tag} ⚡" if len(sys.argv) < 3 else sys.argv[2]
+    default_desc = (
         f"## 🎵 AuraPlayer {tag}\n\n"
         "✨ تغییرات این نسخه:\n"
-        "- افزایش طول و دقت اسلایدر بلندی صدا.\n"
-        "- نمایش زنده درصد عددی بلندی صدا (Volume Percentage).\n"
-        "- قابلیت تنظیم نرم صدا با چرخ ماوس (Mouse Wheel).\n\n"
+        "- اتصال به موتور چندگانه لیریکس (NetEase, Megalobiz, Musixmatch) و رفع قطعی سرور LRCLIB.\n"
+        "- ذخیره خودکار فایل‌های لیریکس (.lrc) و ترجمه فارسی هماهنگ با زمان (_persian.lrc) هنگام دانلود آهنگ‌ها و آلبوم‌ها.\n"
+        "- دکمه اختصاصی دانلود فایل لیریکس (.lrc) روی کارت آهنگ و در لیست قطعات آلبوم/پلی‌لیست.\n"
+        "- فیلتر و حذف فایل‌های .gitkeep از خروجی‌های پرتابل.\n\n"
         "### 📦 نحوه به‌روزرسانی:\n"
-        "کاربران می‌توانند با ۱ کلیک روی دکمه «نسخه» در بالای برنامه، پچ کم‌حجم (۱.۲ مگابایت) را خودکار دریافت کنند."
+        "کاربران می‌توانند با ۱ کلیک روی دکمه «نسخه» در بالای برنامه، پچ کم‌حجم (۱.۲۴ مگابایت) را خودکار دریافت کنند."
     )
+    description = sys.argv[3] if len(sys.argv) > 3 else default_desc
 
     headers = {
         "Authorization": f"Bearer {token}",
