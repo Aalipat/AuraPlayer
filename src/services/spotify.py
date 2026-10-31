@@ -377,14 +377,14 @@ class SpotifyService:
                 lines.append(cleaned)
         return "\n".join(lines)
 
-    async def translate_lyrics_to_persian(self, synced_lrc: str, plain_lyrics: str = "") -> Dict[str, str]:
+    async def translate_lyrics(self, synced_lrc: str, plain_lyrics: str = "", target_lang: str = "fa") -> Dict[str, str]:
         """
-        Translates lyrics line-by-line into fluent Persian while preserving exact LRC timestamps.
-        Uses active proxy for Google Translate requests.
+        Translates lyrics line-by-line into target_lang (Persian or English) while preserving exact LRC timestamps.
+        Uses active proxy for Google Translate requests with multi-provider fallback.
         """
         source = synced_lrc if synced_lrc.strip() else plain_lyrics
         if not source.strip():
-            return {"persian_synced": "", "persian_plain": "", "bilingual": ""}
+            return {"synced": "", "plain": "", "bilingual": "", "persian_synced": "", "persian_plain": ""}
 
         lines = source.splitlines()
         ts_regex = re.compile(r'^(\[\d{2}:\d{2}(?:\.\d{2,3})?\])\s*(.*)$')
@@ -406,7 +406,7 @@ class SpotifyService:
                     text_chunks.append(stripped)
 
         if not text_chunks:
-            return {"persian_synced": "", "persian_plain": "", "bilingual": ""}
+            return {"synced": "", "plain": "", "bilingual": "", "persian_synced": "", "persian_plain": ""}
 
         proxy_url = self._get_proxy_url()
 
@@ -422,33 +422,54 @@ class SpotifyService:
                     return
                 combined = "\n".join(batch)
                 success = False
+
+                # 1. Primary: Chrome extension translate endpoint (fast, unthrottled)
                 try:
-                    url = "https://translate.googleapis.com/translate_a/single"
-                    params = {"client": "gtx", "sl": "auto", "tl": "fa", "dt": "t", "q": combined}
+                    url = "https://clients5.google.com/translate_a/t"
+                    params = {"client": "dict-chrome-ex", "sl": "auto", "tl": target_lang, "q": combined}
                     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-                    resp = requests.get(url, params=params, headers=headers, proxies=proxies, timeout=10)
+                    resp = requests.get(url, params=params, headers=headers, proxies=proxies, timeout=12)
                     if resp.status_code == 200:
                         data = resp.json()
-                        translated_block = "".join([part[0] for part in data[0] if part and part[0]])
-                        translated_lines = translated_block.splitlines()
-                        for original, trans in zip(batch, translated_lines):
-                            translated_dict[original] = trans.strip()
-                        success = True
+                        raw_block = data[0][0] if isinstance(data[0], list) else data[0]
+                        if isinstance(raw_block, str) and raw_block.strip():
+                            translated_lines = raw_block.splitlines()
+                            for original, trans in zip(batch, translated_lines):
+                                translated_dict[original] = trans.strip()
+                            success = True
                 except Exception as e:
-                    logger.debug(f"Google translate error: {e}")
+                    logger.debug(f"Clients5 translate failed: {e}")
 
+                # 2. Fallback: Google GTX endpoint
                 if not success:
-                    # Multi-provider fallback: MyMemory Translation API
+                    try:
+                        url = "https://translate.googleapis.com/translate_a/single"
+                        params = {"client": "gtx", "sl": "auto", "tl": target_lang, "dt": "t", "q": combined}
+                        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+                        resp = requests.get(url, params=params, headers=headers, proxies=proxies, timeout=10)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            translated_block = "".join([part[0] for part in data[0] if part and part[0]])
+                            translated_lines = translated_block.splitlines()
+                            for original, trans in zip(batch, translated_lines):
+                                translated_dict[original] = trans.strip()
+                            success = True
+                    except Exception as e:
+                        logger.debug(f"Google translate gtx error: {e}")
+
+                # 3. Fallback: MyMemory Translation API
+                if not success:
+                    sl = "fa" if target_lang == "en" else "en"
                     for original in batch:
                         try:
                             mm_url = "https://api.mymemory.translated.net/get"
-                            mm_params = {"q": original, "langpair": "en|fa"}
+                            mm_params = {"q": original, "langpair": f"{sl}|{target_lang}"}
                             mm_resp = requests.get(mm_url, params=mm_params, proxies=proxies, timeout=8)
                             if mm_resp.status_code == 200:
                                 res_json = mm_resp.json()
-                                fa_txt = res_json.get("responseData", {}).get("translatedText")
-                                if fa_txt and not fa_txt.startswith("MYMEMORY WARNING"):
-                                    translated_dict[original] = fa_txt.strip()
+                                trans_txt = res_json.get("responseData", {}).get("translatedText")
+                                if trans_txt and not trans_txt.startswith("MYMEMORY WARNING"):
+                                    translated_dict[original] = trans_txt.strip()
                                     continue
                         except Exception:
                             pass
@@ -469,29 +490,38 @@ class SpotifyService:
 
         translated_dict = await asyncio.to_thread(_translate_sync)
 
-        persian_synced_lines = []
-        persian_plain_lines = []
+        synced_lines = []
+        plain_lines = []
         bilingual_lines = []
 
         for ts, orig_txt in parsed_lines:
-            fa_txt = translated_dict.get(orig_txt, orig_txt)
+            trans_txt = translated_dict.get(orig_txt, orig_txt)
             if ts:
-                persian_synced_lines.append(f"{ts} {fa_txt}")
+                synced_lines.append(f"{ts} {trans_txt}")
                 bilingual_lines.append(f"{ts} {orig_txt}")
-                bilingual_lines.append(f"          ({fa_txt})")
+                bilingual_lines.append(f"          ({trans_txt})")
             else:
-                persian_synced_lines.append(fa_txt)
+                synced_lines.append(trans_txt)
                 bilingual_lines.append(orig_txt)
-                bilingual_lines.append(f"({fa_txt})")
+                bilingual_lines.append(f"({trans_txt})")
 
-            if fa_txt:
-                persian_plain_lines.append(fa_txt)
+            if trans_txt:
+                plain_lines.append(trans_txt)
+
+        result_synced = "\n".join(synced_lines)
+        result_plain = "\n".join(plain_lines)
+        result_bilingual = "\n".join(bilingual_lines)
 
         return {
-            "persian_synced": "\n".join(persian_synced_lines),
-            "persian_plain": "\n".join(persian_plain_lines),
-            "bilingual": "\n".join(bilingual_lines),
+            "synced": result_synced,
+            "plain": result_plain,
+            "bilingual": result_bilingual,
+            "persian_synced": result_synced if target_lang == "fa" else "",
+            "persian_plain": result_plain if target_lang == "fa" else "",
         }
+
+    async def translate_lyrics_to_persian(self, synced_lrc: str, plain_lyrics: str = "") -> Dict[str, str]:
+        return await self.translate_lyrics(synced_lrc, plain_lyrics, target_lang="fa")
 
     async def search_audio_match(self, artist: str, title: str, duration_sec: int = 0) -> str:
         """

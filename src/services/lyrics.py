@@ -236,7 +236,38 @@ class LyricsService:
                         fa_lines = parse_lrc(fa_synced) if companion_fa.suffix == ".lrc" else parse_subtitles(fa_synced)
                         fa_plain = "\n".join(l["text"] for l in fa_lines if l.get("text"))
 
+                    is_primary_persian = bool(re.search(r'[\u0600-\u06FF]', content))
+
                     if lines and fa_lines:
+                        # Check if lines and fa_lines are identical duplicates due to previous rate limits
+                        lines_match = (
+                            len(lines) == len(fa_lines) and
+                            len(lines) > 0 and
+                            lines[0].get("text") == fa_lines[0].get("text")
+                        )
+                        if lines_match and include_translation:
+                            try:
+                                from src.services.spotify import spotify_service
+                                if is_primary_persian:
+                                    # Translate Persian to English
+                                    tr = await spotify_service.translate_lyrics(content, "", target_lang="en")
+                                    en_sync = tr.get("synced", "")
+                                    if en_sync:
+                                        lines = parse_lrc(en_sync)
+                                else:
+                                    # Translate English to Persian
+                                    tr = await spotify_service.translate_lyrics(content, "", target_lang="fa")
+                                    fa_sync = tr.get("persian_synced") or tr.get("synced", "")
+                                    if fa_sync:
+                                        fa_lines = parse_lrc(fa_sync)
+                                        fa_synced = fa_sync
+                                        try:
+                                            media_path.with_name(f"{media_path.stem}_persian.lrc").write_text(fa_sync, encoding="utf-8")
+                                        except Exception:
+                                            pass
+                            except Exception as retrans_err:
+                                logger.debug(f"Retranslation error: {retrans_err}")
+
                         cls._pair_fa_lines(lines, fa_lines)
                         bilingual = "\n".join(
                             f"{l.get('text', '')}\n{l.get('fa_text', '')}"
@@ -249,18 +280,35 @@ class LyricsService:
                     if lines and include_translation and not fa_lines:
                         try:
                             from src.services.spotify import spotify_service
-                            trans = await spotify_service.translate_lyrics_to_persian(content, "")
-                            fa_synced = trans.get("persian_synced", "")
-                            fa_plain = trans.get("persian_plain", "")
-                            bilingual = trans.get("bilingual", "")
-                            if fa_synced:
-                                fa_lines = parse_lrc(fa_synced)
-                                cls._pair_fa_lines(lines, fa_lines)
+                            if is_primary_persian:
+                                # Primary is Persian: lines are Persian, translate to English for en display
+                                fa_lines = list(lines)
+                                fa_synced = content
+                                fa_plain = "\n".join(l["text"] for l in fa_lines if l.get("text"))
+                                trans = await spotify_service.translate_lyrics(content, "", target_lang="en")
+                                en_synced = trans.get("synced", "")
+                                if en_synced:
+                                    lines = parse_lrc(en_synced)
+                                    cls._pair_fa_lines(lines, fa_lines)
                                 try:
                                     save_fa = media_path.with_name(f"{media_path.stem}_persian.lrc")
                                     save_fa.write_text(fa_synced, encoding="utf-8")
                                 except Exception:
                                     pass
+                            else:
+                                # Primary is English: translate to Persian
+                                trans = await spotify_service.translate_lyrics(content, "", target_lang="fa")
+                                fa_synced = trans.get("persian_synced") or trans.get("synced", "")
+                                fa_plain = trans.get("persian_plain") or trans.get("plain", "")
+                                bilingual = trans.get("bilingual", "")
+                                if fa_synced:
+                                    fa_lines = parse_lrc(fa_synced)
+                                    cls._pair_fa_lines(lines, fa_lines)
+                                    try:
+                                        save_fa = media_path.with_name(f"{media_path.stem}_persian.lrc")
+                                        save_fa.write_text(fa_synced, encoding="utf-8")
+                                    except Exception:
+                                        pass
                         except Exception as te:
                             logger.debug(f"Local subtitle auto-translation error: {te}")
 
@@ -303,6 +351,26 @@ class LyricsService:
                 if en_text or fa_text:
                     parsed_en = parse_lrc(en_text) if en_text else []
                     parsed_fa = parse_lrc(fa_text) if fa_text else []
+
+                    # Cross-translate if one language is missing
+                    if parsed_en and not parsed_fa:
+                        try:
+                            from src.services.spotify import spotify_service
+                            trans = await spotify_service.translate_lyrics(en_text, "", target_lang="fa")
+                            fa_text = trans.get("persian_synced") or trans.get("synced", "")
+                            if fa_text:
+                                parsed_fa = parse_lrc(fa_text)
+                        except Exception:
+                            pass
+                    elif parsed_fa and not parsed_en:
+                        try:
+                            from src.services.spotify import spotify_service
+                            trans = await spotify_service.translate_lyrics(fa_text, "", target_lang="en")
+                            en_text = trans.get("synced", "")
+                            if en_text:
+                                parsed_en = parse_lrc(en_text)
+                        except Exception:
+                            pass
 
                     if media_path and media_path.exists():
                         try:

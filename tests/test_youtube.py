@@ -179,3 +179,57 @@ async def test_companion_subtitle_lyrics_integration(tmp_path):
         if vtt_file.exists():
             vtt_file.unlink()
 
+
+def test_bidirectional_subtitle_translation():
+    from src.services.subtitles import _translate_snippets
+    Snippet = type('Snippet', (), {})
+
+    # 1. English to Persian
+    s1 = Snippet()
+    s1.start = 5.0
+    s1.text = "Welcome to our technical conversation."
+    fa_results = _translate_snippets([s1], target_lang="fa")
+    assert len(fa_results) == 1
+    assert "[00:05]" in fa_results[0]
+    # Verify Persian characters
+    assert any('\u0600' <= char <= '\u06FF' for char in fa_results[0])
+
+    # 2. Persian to English
+    s2 = Snippet()
+    s2.start = 12.5
+    s2.text = "سلام به همه شنوندگان گرامی"
+    en_results = _translate_snippets([s2], target_lang="en")
+    assert len(en_results) == 1
+    assert "[00:12]" in en_results[0]
+    # Verify English characters and no Persian in translation
+    assert "listener" in en_results[0].lower() or "hello" in en_results[0].lower() or "welcome" in en_results[0].lower()
+
+
+@pytest.mark.asyncio
+async def test_media_tagging_no_companion_images(tmp_path):
+    from src.services.media import MediaService
+    import subprocess
+    media = MediaService()
+
+    mp3_file = tmp_path / "song_clean.mp3"
+    subprocess.run([
+        'ffmpeg', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=mono',
+        '-t', '1', '-acodec', 'libmp3lame', '-b:a', '128k', str(mp3_file)
+    ], capture_output=True, check=True)
+
+    # Fake 1x1 GIF/PNG cover
+    cover_png = tmp_path / "cover.png"
+    cover_png.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82")
+
+    await media.tag_mp3(
+        mp3_path=mp3_file,
+        title="Test Track",
+        artist="Test Artist",
+        cover_image=cover_png
+    )
+
+    # Ensure NO song_clean.jpg or song_clean.png was written
+    assert not (tmp_path / "song_clean.jpg").exists()
+    assert not (tmp_path / "song_clean.png").exists()
+
+

@@ -202,17 +202,41 @@ class DownloadTaskManager:
         if not video_id or not media_file or not media_file.exists():
             return
         try:
+            from src.services.spotify import spotify_service
+
             # 1. Fetch transcript in English/Original
             en_text, _ = await asyncio.to_thread(self.subtitle_service._sync_fetch_transcript, url, "en", video_id)
+            # 2. Fetch transcript in Persian (with auto-translation)
+            fa_text, _ = await asyncio.to_thread(self.subtitle_service._sync_fetch_transcript, url, "fa", video_id)
+
+            # Bidirectional cross-translation if one is missing:
+            if en_text and en_text.strip() and (not fa_text or not fa_text.strip()):
+                try:
+                    trans_fa = await spotify_service.translate_lyrics(en_text, "", target_lang="fa")
+                    fa_text = trans_fa.get("synced") or trans_fa.get("plain", "")
+                except Exception as t_err:
+                    logger.debug(f"Auto-translate EN to FA failed: {t_err}")
+
+            elif fa_text and fa_text.strip() and (not en_text or not en_text.strip()):
+                try:
+                    trans_en = await spotify_service.translate_lyrics(fa_text, "", target_lang="en")
+                    en_text = trans_en.get("synced") or trans_en.get("plain", "")
+                except Exception as t_err:
+                    logger.debug(f"Auto-translate FA to EN failed: {t_err}")
+
             if en_text and en_text.strip():
                 lrc_path = media_file.with_suffix(".lrc")
                 lrc_path.write_text(en_text, encoding="utf-8")
 
-            # 2. Fetch transcript in Persian (with auto-translation)
-            fa_text, _ = await asyncio.to_thread(self.subtitle_service._sync_fetch_transcript, url, "fa", video_id)
             if fa_text and fa_text.strip():
                 fa_lrc_path = media_file.with_name(f"{media_file.stem}_persian.lrc")
                 fa_lrc_path.write_text(fa_text, encoding="utf-8")
+
+            # Fallback guarantee: if only one exists, make sure primary .lrc is populated
+            lrc_path = media_file.with_suffix(".lrc")
+            if not lrc_path.exists():
+                if fa_text and fa_text.strip():
+                    lrc_path.write_text(fa_text, encoding="utf-8")
         except Exception as e:
             logger.debug(f"Companion transcript auto-fetch failed for {video_id}: {e}")
 

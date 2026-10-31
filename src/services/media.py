@@ -389,13 +389,6 @@ class MediaService:
                         desc='Cover',
                         data=cover_data
                     ))
-                    try:
-                        ext = '.png' if mime_type == 'image/png' else '.jpg'
-                        companion_img = mp3_path.with_suffix(ext)
-                        if not companion_img.exists():
-                            companion_img.write_bytes(cover_data)
-                    except Exception as img_err:
-                        logger.debug(f"Could not save companion image: {img_err}")
 
                 audio.save(v2_version=3)
                 logger.info(f"Tagged MP3 (ID3v2.3) successfully: {mp3_path.name}")
@@ -455,14 +448,6 @@ class MediaService:
                     p.desc = 'Cover'
                     encoded = base64.b64encode(p.write()).decode('ascii')
                     audio['metadata_block_picture'] = [encoded]
-
-                    try:
-                        ext = '.png' if mime_type == 'image/png' else '.jpg'
-                        companion_img = opus_path.with_suffix(ext)
-                        if not companion_img.exists():
-                            companion_img.write_bytes(cover_data)
-                    except Exception as img_err:
-                        logger.debug(f"Could not save companion image: {img_err}")
 
                 audio.save()
                 logger.info(f"Tagged Opus successfully: {opus_path.name}")

@@ -66,31 +66,81 @@ def _translate_snippets(snippets: list, target_lang: str = "fa", proxy_url: Opti
         if not chk:
             return
         combined = "\n".join([x.text for x in chk])
+        translated_lines = None
+
+        # Strategy 1: Google Translate Chrome Extension API (fast, unthrottled, accurate)
         try:
             import requests
             proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
-            url = "https://translate.googleapis.com/translate_a/single"
+            url = "https://clients5.google.com/translate_a/t"
             params = {
-                "client": "gtx",
+                "client": "dict-chrome-ex",
                 "sl": "auto",
                 "tl": target_lang,
-                "dt": "t",
                 "q": combined,
             }
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-            resp = requests.get(url, params=params, headers=headers, proxies=proxies, timeout=15)
+            resp = requests.get(url, params=params, headers=headers, proxies=proxies, timeout=12)
             if resp.status_code == 200:
                 data = resp.json()
-                trans_full = ''.join([item[0] for item in data[0] if item and item[0]])
-                trans_lines = trans_full.splitlines()
-                for i, s in enumerate(chk):
-                    t_text = trans_lines[i] if i < len(trans_lines) else s.text
-                    results.append(f"[{format_seconds(s.start)}] {t_text}")
-            else:
-                for s in chk:
-                    results.append(f"[{format_seconds(s.start)}] {s.text}")
+                raw_text = data[0][0] if isinstance(data[0], list) else data[0]
+                if isinstance(raw_text, str) and raw_text.strip():
+                    translated_lines = raw_text.splitlines()
         except Exception as e:
-            logger.warning(f"Batch translation failed, falling back to original: {e}")
+            logger.debug(f"Chrome extension translate attempt failed: {e}")
+
+        # Strategy 2: Google GTX single endpoint
+        if not translated_lines:
+            try:
+                import requests
+                proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+                url = "https://translate.googleapis.com/translate_a/single"
+                params = {
+                    "client": "gtx",
+                    "sl": "auto",
+                    "tl": target_lang,
+                    "dt": "t",
+                    "q": combined,
+                }
+                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+                resp = requests.get(url, params=params, headers=headers, proxies=proxies, timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    trans_full = ''.join([item[0] for item in data[0] if item and item[0]])
+                    if trans_full.strip():
+                        translated_lines = trans_full.splitlines()
+            except Exception as e:
+                logger.debug(f"Google gtx translate attempt failed: {e}")
+
+        # Strategy 3: MyMemory API fallback
+        if not translated_lines:
+            try:
+                import requests
+                proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+                lines_acc = []
+                sl = "fa" if target_lang == "en" else "en"
+                for s in chk:
+                    try:
+                        mm_url = "https://api.mymemory.translated.net/get"
+                        mm_params = {"q": s.text, "langpair": f"{sl}|{target_lang}"}
+                        mm_resp = requests.get(mm_url, params=mm_params, proxies=proxies, timeout=6)
+                        if mm_resp.status_code == 200:
+                            trans_txt = mm_resp.json().get("responseData", {}).get("translatedText")
+                            if trans_txt and not trans_txt.startswith("MYMEMORY WARNING"):
+                                lines_acc.append(trans_txt.strip())
+                                continue
+                    except Exception:
+                        pass
+                    lines_acc.append(s.text)
+                translated_lines = lines_acc
+            except Exception as e:
+                logger.debug(f"MyMemory fallback failed: {e}")
+
+        if translated_lines:
+            for i, s in enumerate(chk):
+                t_text = translated_lines[i] if i < len(translated_lines) and translated_lines[i].strip() else s.text
+                results.append(f"[{format_seconds(s.start)}] {t_text}")
+        else:
             for s in chk:
                 results.append(f"[{format_seconds(s.start)}] {s.text}")
 
@@ -117,7 +167,7 @@ class SubtitleService:
         Fetch transcript with intelligent dual-strategy and auto-translation:
         1. Direct match in requested language (official or auto-captions).
         2. YouTube native translation if available.
-        3. Automatic on-the-fly translation to target language (e.g. English -> Persian).
+        3. Automatic on-the-fly translation to target language (e.g. English -> Persian, Persian -> English).
         4. Fallback: yt-dlp native extraction.
         Returns (cleaned_text, source_type).
         """
@@ -137,13 +187,13 @@ class SubtitleService:
             transcript_list = ytt.list(video_id)
 
             # 1. Exact language match
-            target = next((t for t in transcript_list if t.language_code == lang), None)
+            target = next((t for t in transcript_list if t.language_code.startswith(lang)), None)
 
             # 2. YouTube native translation
             if not target:
                 for t in transcript_list:
                     if t.is_translatable:
-                        match_lang = next((x for x in t.translation_languages if x.language_code == lang), None)
+                        match_lang = next((x for x in t.translation_languages if x.language_code.startswith(lang)), None)
                         if match_lang:
                             target = t.translate(lang)
                             break
@@ -157,8 +207,18 @@ class SubtitleService:
                 source_type = "official" if not target.is_generated else "automatic"
                 return "\n".join(lines), source_type
 
-            # 3. Intelligent auto-translation from available base transcript (e.g. English speech -> Persian)
-            base_t = next((t for t in transcript_list if t.language_code == 'en'), None)
+            # 3. Intelligent auto-translation from available base transcript (e.g. English speech -> Persian, Persian -> English)
+            base_t = None
+            if lang == "fa":
+                # Prefer English base to translate into Persian
+                base_t = next((t for t in transcript_list if t.language_code.startswith("en")), None)
+            elif lang == "en":
+                # Prefer Persian base to translate into English
+                base_t = next((t for t in transcript_list if t.language_code.startswith("fa")), None)
+
+            if not base_t:
+                # Find any available transcript that is not the target language
+                base_t = next((t for t in transcript_list if not t.language_code.startswith(lang)), None)
             if not base_t and transcript_list:
                 base_t = list(transcript_list)[0]
 
@@ -200,21 +260,62 @@ class SubtitleService:
                 subtitles = info.get('subtitles', {}) or {}
                 auto_captions = info.get('automatic_captions', {}) or {}
 
+                fetch_lang = None
                 source_type = "none"
-                if lang in subtitles and subtitles[lang]:
-                    source_type = "official"
-                elif lang in auto_captions and auto_captions[lang]:
-                    source_type = "automatic"
 
-                if source_type != "none":
-                    ydl.download([url])
-                    matches = list(settings.transcript_dir.glob(f"raw_{video_id}_{lang}*.vtt"))
+                if any(k.startswith(lang) for k in subtitles):
+                    fetch_lang = next(k for k in subtitles if k.startswith(lang))
+                    source_type = "official"
+                elif any(k.startswith(lang) for k in auto_captions):
+                    fetch_lang = next(k for k in auto_captions if k.startswith(lang))
+                    source_type = "automatic"
+                else:
+                    # Alternative base language to download and translate
+                    alt_lang = "en" if lang == "fa" else "fa"
+                    for group, s_type in [(subtitles, "official"), (auto_captions, "automatic")]:
+                        match = next((k for k in group if k.startswith(alt_lang)), None)
+                        if not match and group:
+                            match = list(group.keys())[0]
+                        if match:
+                            fetch_lang = match
+                            source_type = "auto_translated"
+                            break
+
+                if fetch_lang:
+                    opts['subtitleslangs'] = [fetch_lang]
+                    temp_base = settings.transcript_dir / f"raw_{video_id}_{fetch_lang}"
+                    opts['outtmpl'] = str(temp_base) + '.%(ext)s'
+                    with yt_dlp.YoutubeDL(opts) as ydl_down:
+                        ydl_down.download([url])
+
+                    matches = list(settings.transcript_dir.glob(f"raw_{video_id}_{fetch_lang}*.vtt"))
                     if matches:
                         raw_vtt = matches[0].read_text(encoding='utf-8', errors='replace')
                         matches[0].unlink(missing_ok=True)
-                        cleaned = clean_vtt_text(raw_vtt)
-                        if cleaned.strip():
-                            return cleaned, source_type
+
+                        from src.services.lyrics import parse_subtitles
+                        parsed_entries = parse_subtitles(raw_vtt)
+
+                        if parsed_entries:
+                            if source_type == "auto_translated" or not fetch_lang.startswith(lang):
+                                # Translate parsed VTT entries to requested target lang
+                                SnippetItem = type('SnippetItem', (), {})
+                                snips = []
+                                for item in parsed_entries:
+                                    s_obj = SnippetItem()
+                                    s_obj.start = item['time']
+                                    s_obj.text = item['text']
+                                    snips.append(s_obj)
+                                trans_lines = _translate_snippets(snips, target_lang=lang, proxy_url=active_proxy)
+                                if trans_lines:
+                                    return "\n".join(trans_lines), "auto_translated"
+                            else:
+                                formatted_lines = [f"[{format_seconds(item['time'])}] {item['text']}" for item in parsed_entries]
+                                return "\n".join(formatted_lines), source_type
+                        else:
+                            cleaned = clean_vtt_text(raw_vtt)
+                            if cleaned.strip():
+                                return cleaned, source_type
 
         except Exception as e:
             logger.warning(f"yt-dlp subtitle attempt failed for {video_id}: {e}")
