@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.IO;
 using System.Net.Http;
 using System.Runtime.InteropServices;
@@ -10,16 +11,24 @@ using System.Windows.Forms;
 
 namespace YouTubeDownloaderApp
 {
-    #region Custom Sleek Controls for MiniPlayer
-    public class RoundedPictureBox : PictureBox
+    #region Custom Lightweight Anti-Aliased Controls
+    public class RoundedPictureBox : Control
     {
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public int CornerRadius { get; set; } = 10;
+        public Image? Image { get; set; }
+
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public int CornerRadius { get; set; } = 12;
+
         public RoundedPictureBox()
         {
-            DoubleBuffered = true;
-            SizeMode = PictureBoxSizeMode.Zoom;
+            SetStyle(ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.ResizeRedraw |
+                     ControlStyles.UserPaint |
+                     ControlStyles.SupportsTransparentBackColor, true);
             BackColor = Color.Transparent;
+            Cursor = Cursors.Hand;
         }
 
         protected override void OnPaint(PaintEventArgs pe)
@@ -41,12 +50,12 @@ namespace YouTubeDownloaderApp
             }
             g.ResetClip();
 
-            using var pen = new Pen(Color.FromArgb(50, 255, 255, 255), 1.2f);
+            using var pen = new Pen(Color.FromArgb(60, 255, 255, 255), 1.2f);
             g.DrawPath(pen, path);
         }
     }
 
-    public class CircularIconButton : Button
+    public class CircularIconButton : Control
     {
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public bool IsPlayButton { get; set; } = false;
@@ -71,10 +80,12 @@ namespace YouTubeDownloaderApp
 
         public CircularIconButton()
         {
-            FlatStyle = FlatStyle.Flat;
-            FlatAppearance.BorderSize = 0;
+            SetStyle(ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.ResizeRedraw |
+                     ControlStyles.UserPaint |
+                     ControlStyles.SupportsTransparentBackColor, true);
             BackColor = Color.Transparent;
-            DoubleBuffered = true;
             Cursor = Cursors.Hand;
         }
 
@@ -91,7 +102,7 @@ namespace YouTubeDownloaderApp
 
             if (IsPlayButton)
             {
-                // Play button with vibrant accent circle
+                // Play/Pause button with vibrant accent circle
                 Color bg = _isPressed
                     ? ControlPaint.Dark(AccentColor, 0.15f)
                     : (_isHovered ? ControlPaint.Light(AccentColor, 0.15f) : AccentColor);
@@ -99,7 +110,7 @@ namespace YouTubeDownloaderApp
                 using var brush = new SolidBrush(bg);
                 g.FillEllipse(brush, rect);
 
-                using var ringPen = new Pen(Color.FromArgb(60, 255, 255, 255), 1.2f);
+                using var ringPen = new Pen(Color.FromArgb(70, 255, 255, 255), 1.2f);
                 g.DrawEllipse(ringPen, rect);
 
                 int cx = Width / 2;
@@ -117,7 +128,7 @@ namespace YouTubeDownloaderApp
                 }
                 else
                 {
-                    // Play icon: equilateral triangle
+                    // Play icon: crisp equilateral triangle
                     int triH = 14;
                     int triW = 13;
                     Point[] pts = {
@@ -130,7 +141,7 @@ namespace YouTubeDownloaderApp
             }
             else
             {
-                // Circular glass button
+                // Secondary circular glass button
                 if (_isHovered)
                 {
                     Color hoverBg = IconType == "close"
@@ -222,7 +233,7 @@ namespace YouTubeDownloaderApp
         }
     }
 
-    public class RoundedProgressBar : Panel
+    public class RoundedProgressBar : Control
     {
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public Color ProgressColor { get; set; } = Color.FromArgb(16, 185, 129);
@@ -232,8 +243,12 @@ namespace YouTubeDownloaderApp
 
         public RoundedProgressBar()
         {
-            DoubleBuffered = true;
-            Height = 5;
+            SetStyle(ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.ResizeRedraw |
+                     ControlStyles.UserPaint |
+                     ControlStyles.SupportsTransparentBackColor, true);
+            Height = 6;
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
         }
@@ -246,7 +261,7 @@ namespace YouTubeDownloaderApp
             // Translucent glass track
             var trackRect = new Rectangle(0, 0, Width, Height);
             using var trackBrush = new SolidBrush(Color.FromArgb(40, 255, 255, 255));
-            using var trackPath = MiniPlayerForm.CreateRoundRectPath(trackRect, 2);
+            using var trackPath = MiniPlayerForm.CreateRoundRectPath(trackRect, 3);
             g.FillPath(trackBrush, trackPath);
 
             // Active fill
@@ -255,7 +270,7 @@ namespace YouTubeDownloaderApp
             {
                 var fillRect = new Rectangle(0, 0, barWidth, Height);
                 using var fillBrush = new SolidBrush(ProgressColor);
-                using var fillPath = MiniPlayerForm.CreateRoundRectPath(fillRect, 2);
+                using var fillPath = MiniPlayerForm.CreateRoundRectPath(fillRect, 3);
                 g.FillPath(fillBrush, fillPath);
             }
         }
@@ -301,9 +316,6 @@ namespace YouTubeDownloaderApp
         public event Action? OnRestoreMainWindow;
 
         private readonly RoundedPictureBox _coverPic;
-        private readonly Label _titleLabel;
-        private readonly Label _artistLabel;
-        private readonly Label _timeLabel;
         private readonly RoundedProgressBar _progressBar;
         private readonly CircularIconButton _prevBtn;
         private readonly CircularIconButton _playBtn;
@@ -313,6 +325,8 @@ namespace YouTubeDownloaderApp
         private readonly CircularIconButton _restoreBtn;
         private readonly CircularIconButton _closeBtn;
 
+        private string _title = "آماده پخش...";
+        private string _artist = "YouTube & Spotify Downloader";
         private bool _isPlaying = false;
         private bool _isPinned = true;
         private bool _isMuted = false;
@@ -332,80 +346,40 @@ namespace YouTubeDownloaderApp
             TopMost = true;
             ShowInTaskbar = false;
             StartPosition = FormStartPosition.Manual;
-            Size = new Size(450, 140);
-            MinimumSize = new Size(360, 120);
+            Size = new Size(460, 140);
+            MinimumSize = new Size(380, 120);
             MaximumSize = new Size(820, 320);
             DoubleBuffered = true;
 
             // Position at bottom-right corner of primary screen
             var workArea = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
-            Location = new Point(workArea.Right - 470, workArea.Bottom - 165);
+            Location = new Point(workArea.Right - 480, workArea.Bottom - 165);
 
             // Rounded Cover Art
             _coverPic = new RoundedPictureBox
             {
-                Size = new Size(86, 86),
+                Size = new Size(84, 84),
                 Location = new Point(16, 16),
-                Cursor = Cursors.Hand
+                CornerRadius = 12
             };
             _coverPic.Click += (s, e) => OnRestoreMainWindow?.Invoke();
             Controls.Add(_coverPic);
 
-            // Title Label
-            _titleLabel = new Label
-            {
-                Location = new Point(116, 14),
-                Size = new Size(220, 22),
-                ForeColor = Color.White,
-                BackColor = Color.Transparent,
-                Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
-                AutoEllipsis = true,
-                Text = "آماده پخش...",
-                Cursor = Cursors.Hand
-            };
-            _titleLabel.Click += (s, e) => OnRestoreMainWindow?.Invoke();
-            Controls.Add(_titleLabel);
-
-            // Artist Label
-            _artistLabel = new Label
-            {
-                Location = new Point(116, 38),
-                Size = new Size(220, 18),
-                ForeColor = Color.FromArgb(148, 163, 184), // slate-400
-                BackColor = Color.Transparent,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
-                AutoEllipsis = true,
-                Text = "YouTube & Spotify Downloader"
-            };
-            Controls.Add(_artistLabel);
-
             // Seekable Rounded Progress Bar
             _progressBar = new RoundedProgressBar
             {
-                Location = new Point(116, 64),
-                Size = new Size(220, 5),
+                Location = new Point(116, 62),
+                Size = new Size(320, 6),
                 ProgressColor = _accentColor
             };
             _progressBar.MouseClick += OnProgressTrackClick;
             Controls.Add(_progressBar);
 
-            // Time Label
-            _timeLabel = new Label
-            {
-                Location = new Point(116, 73),
-                Size = new Size(110, 16),
-                ForeColor = Color.FromArgb(100, 116, 139), // slate-500
-                BackColor = Color.Transparent,
-                Font = new Font("Segoe UI", 7.5f, FontStyle.Bold),
-                Text = "00:00 / 00:00"
-            };
-            Controls.Add(_timeLabel);
-
             // Top action buttons (Pin, Restore, Close)
             _pinBtn = new CircularIconButton
             {
                 Size = new Size(26, 26),
-                Location = new Point(345, 10),
+                Location = new Point(356, 10),
                 IconType = "pin",
                 IsPinned = _isPinned,
                 AccentColor = _accentColor
@@ -416,7 +390,7 @@ namespace YouTubeDownloaderApp
             _restoreBtn = new CircularIconButton
             {
                 Size = new Size(26, 26),
-                Location = new Point(375, 10),
+                Location = new Point(388, 10),
                 IconType = "restore"
             };
             _restoreBtn.Click += (s, e) => OnRestoreMainWindow?.Invoke();
@@ -425,7 +399,7 @@ namespace YouTubeDownloaderApp
             _closeBtn = new CircularIconButton
             {
                 Size = new Size(26, 26),
-                Location = new Point(405, 10),
+                Location = new Point(420, 10),
                 IconType = "close"
             };
             _closeBtn.Click += (s, e) => Hide();
@@ -435,7 +409,7 @@ namespace YouTubeDownloaderApp
             _prevBtn = new CircularIconButton
             {
                 Size = new Size(32, 32),
-                Location = new Point(116, 95),
+                Location = new Point(116, 88),
                 IconType = "prev"
             };
             _prevBtn.Click += (s, e) => OnCommand?.Invoke("prev");
@@ -444,7 +418,7 @@ namespace YouTubeDownloaderApp
             _playBtn = new CircularIconButton
             {
                 Size = new Size(40, 40),
-                Location = new Point(154, 91),
+                Location = new Point(156, 84),
                 IsPlayButton = true,
                 IsPlaying = false,
                 AccentColor = _accentColor
@@ -459,7 +433,7 @@ namespace YouTubeDownloaderApp
             _nextBtn = new CircularIconButton
             {
                 Size = new Size(32, 32),
-                Location = new Point(200, 95),
+                Location = new Point(204, 88),
                 IconType = "next"
             };
             _nextBtn.Click += (s, e) => OnCommand?.Invoke("next");
@@ -468,19 +442,14 @@ namespace YouTubeDownloaderApp
             _volBtn = new CircularIconButton
             {
                 Size = new Size(30, 30),
-                Location = new Point(242, 96),
+                Location = new Point(244, 89),
                 IconType = "vol",
                 IsMuted = _isMuted
             };
             _volBtn.Click += (s, e) => OnCommand?.Invoke("mute");
             Controls.Add(_volBtn);
 
-            // Enable dragging form on background and labels
             MouseDown += OnFormMouseDown;
-            _titleLabel.MouseDown += OnFormMouseDown;
-            _artistLabel.MouseDown += OnFormMouseDown;
-            _timeLabel.MouseDown += OnFormMouseDown;
-
             UpdateWindowRegion();
         }
 
@@ -489,7 +458,6 @@ namespace YouTubeDownloaderApp
             base.OnHandleCreated(e);
             try
             {
-                // Native Windows 11 rounded corners attribute
                 int preference = DWMWCP_ROUND;
                 DwmSetWindowAttribute(Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
             }
@@ -520,7 +488,7 @@ namespace YouTubeDownloaderApp
         {
             try
             {
-                IntPtr hRgn = CreateRoundRectRgn(0, 0, Width + 1, Height + 1, 22, 22);
+                IntPtr hRgn = CreateRoundRectRgn(0, 0, Width + 1, Height + 1, 24, 24);
                 if (hRgn != IntPtr.Zero)
                 {
                     Region = Region.FromHrgn(hRgn);
@@ -555,31 +523,22 @@ namespace YouTubeDownloaderApp
             int rightEdge = ClientSize.Width;
             int bottomEdge = ClientSize.Height;
 
-            if (_closeBtn != null) _closeBtn.Location = new Point(rightEdge - 34, 10);
-            if (_restoreBtn != null) _restoreBtn.Location = new Point(rightEdge - 64, 10);
-            if (_pinBtn != null) _pinBtn.Location = new Point(rightEdge - 94, 10);
+            if (_closeBtn != null) _closeBtn.Location = new Point(rightEdge - 36, 12);
+            if (_restoreBtn != null) _restoreBtn.Location = new Point(rightEdge - 68, 12);
+            if (_pinBtn != null) _pinBtn.Location = new Point(rightEdge - 100, 12);
 
-            int textWidth = Math.Max(120, rightEdge - 120 - 95);
-            if (_titleLabel != null) _titleLabel.Width = textWidth;
-            if (_artistLabel != null) _artistLabel.Width = textWidth;
-
-            int progressWidth = Math.Max(120, rightEdge - 120 - 20);
+            int progressWidth = Math.Max(120, rightEdge - 116 - 20);
             if (_progressBar != null)
             {
                 _progressBar.Width = progressWidth;
                 _progressBar.Invalidate();
             }
 
-            int controlsY = Math.Max(70, bottomEdge - 45);
+            int controlsY = Math.Max(70, bottomEdge - 50);
             if (_prevBtn != null) _prevBtn.Location = new Point(116, controlsY + 4);
-            if (_playBtn != null) _playBtn.Location = new Point(154, controlsY);
-            if (_nextBtn != null) _nextBtn.Location = new Point(200, controlsY + 4);
-            if (_volBtn != null) _volBtn.Location = new Point(242, controlsY + 5);
-
-            if (_timeLabel != null)
-            {
-                _timeLabel.Location = new Point(Math.Max(280, rightEdge - 120), controlsY + 12);
-            }
+            if (_playBtn != null) _playBtn.Location = new Point(156, controlsY);
+            if (_nextBtn != null) _nextBtn.Location = new Point(204, controlsY + 4);
+            if (_volBtn != null) _volBtn.Location = new Point(244, controlsY + 5);
 
             Invalidate();
         }
@@ -614,6 +573,13 @@ namespace YouTubeDownloaderApp
         {
             if (e.Button == MouseButtons.Left)
             {
+                // If clicked near title/artist, can also restore
+                if (e.X >= 116 && e.X <= 300 && e.Y >= 10 && e.Y <= 55)
+                {
+                    OnRestoreMainWindow?.Invoke();
+                    return;
+                }
+
                 ReleaseCapture();
                 SendMessage(Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
             }
@@ -634,10 +600,38 @@ namespace YouTubeDownloaderApp
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+            int rightEdge = ClientSize.Width;
+            int bottomEdge = ClientSize.Height;
+            int textWidth = Math.Max(120, rightEdge - 116 - 110);
+
+            // Draw Title directly in OnPaint
+            using var titleFont = new Font("Segoe UI", 10.5f, FontStyle.Bold);
+            using var titleBrush = new SolidBrush(Color.White);
+            var titleRect = new Rectangle(116, 14, textWidth, 22);
+            using var sf = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
+            g.DrawString(_title, titleFont, titleBrush, titleRect, sf);
+
+            // Draw Artist directly in OnPaint
+            using var artistFont = new Font("Segoe UI", 8.5f, FontStyle.Regular);
+            using var artistBrush = new SolidBrush(Color.FromArgb(148, 163, 184));
+            var artistRect = new Rectangle(116, 38, textWidth, 18);
+            g.DrawString(_artist, artistFont, artistBrush, artistRect, sf);
+
+            // Draw Time Label directly in OnPaint (right-aligned next to controls)
+            int controlsY = Math.Max(70, bottomEdge - 50);
+            string timeStr = $"{FormatTime((int)_currentSeconds)} / {FormatTime((int)_totalSeconds)}";
+            using var timeFont = new Font("Segoe UI", 7.5f, FontStyle.Bold);
+            using var timeBrush = new SolidBrush(Color.FromArgb(148, 163, 184));
+            g.DrawString(timeStr, timeFont, timeBrush, Math.Max(285, rightEdge - 115), controlsY + 12);
+
+            // Outer rounded border
             using var path = CreateRoundRectPath(new Rectangle(0, 0, Width - 1, Height - 1), 12);
             using var pen = new Pen(Color.FromArgb(80, _accentColor.R, _accentColor.G, _accentColor.B), 1.2f);
-            e.Graphics.DrawPath(pen, path);
+            g.DrawPath(pen, path);
         }
 
         public void UpdateInfo(string title, string artist, bool isPlaying, string coverUrl = "")
@@ -648,8 +642,8 @@ namespace YouTubeDownloaderApp
                 return;
             }
 
-            _titleLabel.Text = string.IsNullOrWhiteSpace(title) ? "نام قطعه" : title;
-            _artistLabel.Text = string.IsNullOrWhiteSpace(artist) ? "هنرمند" : artist;
+            _title = string.IsNullOrWhiteSpace(title) ? "نام قطعه" : title;
+            _artist = string.IsNullOrWhiteSpace(artist) ? "هنرمند" : artist;
             UpdatePlayState(isPlaying);
 
             if (!string.IsNullOrEmpty(coverUrl))
@@ -684,6 +678,8 @@ namespace YouTubeDownloaderApp
                 _coverPic.Image = null;
                 ResetDefaultTheme();
             }
+
+            Invalidate();
         }
 
         private void ExtractDominantColor(Image img)
@@ -778,10 +774,6 @@ namespace YouTubeDownloaderApp
             _currentSeconds = Math.Max(0, currentSec);
             _totalSeconds = Math.Max(0, totalSec);
 
-            string curStr = FormatTime((int)_currentSeconds);
-            string totStr = FormatTime((int)_totalSeconds);
-            _timeLabel.Text = $"{curStr} / {totStr}";
-
             if (_totalSeconds > 0)
             {
                 _progressBar.ProgressPercentage = _currentSeconds / _totalSeconds;
@@ -791,6 +783,7 @@ namespace YouTubeDownloaderApp
                 _progressBar.ProgressPercentage = 0.0;
             }
             _progressBar.Invalidate();
+            Invalidate();
         }
 
         public void UpdateVolumeState(bool isMuted)

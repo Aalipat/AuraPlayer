@@ -171,11 +171,34 @@ class LyricsService:
                     fa_lines: List[Dict[str, Any]] = []
                     fa_synced = ""
                     fa_plain = ""
+                    bilingual = ""
                     if companion_fa.exists() and companion_fa.stat().st_size > 0:
                         fa_synced = companion_fa.read_text(encoding="utf-8", errors="ignore")
                         fa_lines = parse_lrc(fa_synced)
                         fa_plain = "\n".join(l["text"] for l in fa_lines if l.get("text"))
                         cls._pair_fa_lines(lines, fa_lines)
+                        bilingual = "\n".join(
+                            f"{l.get('text', '')}\n{l.get('fa_text', '')}"
+                            for l in lines
+                            if l.get("text") or l.get("fa_text")
+                        )
+
+                    if lines and include_translation and not fa_lines:
+                        try:
+                            from src.services.spotify import spotify_service
+                            trans = await spotify_service.translate_lyrics_to_persian(content, "")
+                            fa_synced = trans.get("persian_synced", "")
+                            fa_plain = trans.get("persian_plain", "")
+                            bilingual = trans.get("bilingual", "")
+                            if fa_synced:
+                                fa_lines = parse_lrc(fa_synced)
+                                cls._pair_fa_lines(lines, fa_lines)
+                                try:
+                                    companion_fa.write_text(fa_synced, encoding="utf-8")
+                                except Exception:
+                                    pass
+                        except Exception as te:
+                            logger.debug(f"Local lrc auto-translation error: {te}")
 
                     if lines:
                         return {
@@ -191,7 +214,7 @@ class LyricsService:
                             "persian_lines": fa_lines,
                             "persian_synced": fa_synced,
                             "persian_plain": fa_plain,
-                            "bilingual": "",
+                            "bilingual": bilingual,
                         }
                 except Exception as e:
                     logger.debug(f"Failed to read local .lrc: {e}")
@@ -223,6 +246,26 @@ class LyricsService:
             try:
                 cached = json.loads(cache_file.read_text(encoding="utf-8"))
                 if isinstance(cached, dict) and cached.get("has_lyrics"):
+                    has_fa = bool(cached.get("persian_synced") or (cached.get("lines") and cached["lines"][0].get("fa_text")))
+                    if include_translation and not has_fa and (cached.get("synced_lyrics") or cached.get("plain_lyrics")):
+                        # Upgrade old cache on-the-fly with Persian translation
+                        try:
+                            from src.services.spotify import spotify_service
+                            trans = await spotify_service.translate_lyrics_to_persian(
+                                cached.get("synced_lyrics", ""), cached.get("plain_lyrics", "")
+                            )
+                            cached["persian_synced"] = trans.get("persian_synced", "")
+                            cached["persian_plain"] = trans.get("persian_plain", "")
+                            cached["bilingual"] = trans.get("bilingual", "")
+                            if cached.get("persian_synced"):
+                                fa_lines = parse_lrc(cached["persian_synced"])
+                                cached["persian_lines"] = fa_lines
+                                if cached.get("lines"):
+                                    cls._pair_fa_lines(cached["lines"], fa_lines)
+                            cache_file.write_text(json.dumps(cached, ensure_ascii=False, indent=2), encoding="utf-8")
+                        except Exception as te:
+                            logger.debug(f"Cache upgrade translation failed: {te}")
+
                     cached["clean_title"] = clean_title
                     cached["clean_artist"] = clean_artist
                     return cached
