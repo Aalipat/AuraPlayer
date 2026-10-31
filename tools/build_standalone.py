@@ -68,7 +68,7 @@ def should_include(rel_path: str, path_obj: Path, is_lite: bool = False) -> bool
 
 def package_standalone(is_lite: bool = False):
     DIST_DIR.mkdir(parents=True, exist_ok=True)
-    archive_name = "YouTube_Spotify_Desktop_Lite.zip" if is_lite else "YouTube_Spotify_Desktop_Portable.zip"
+    archive_name = "AuraPlayer_Lite.zip" if is_lite else "AuraPlayer_v1.0.0_Portable.zip"
     out_zip = DIST_DIR / archive_name
     if out_zip.exists():
         out_zip.unlink()
@@ -98,15 +98,15 @@ def package_standalone(is_lite: bool = False):
                 rel_str = str(rel_path)
 
                 if should_include(rel_str, full_path, is_lite=is_lite):
-                    # Store inside folder named YouTube_Spotify_Downloader_Desktop
-                    archive_path = f"YouTube_Spotify_Downloader_Desktop/{rel_str.replace('\\', '/')}"
+                    # Store inside folder named AuraPlayer
+                    archive_path = f"AuraPlayer/{rel_str.replace('\\', '/')}"
                     zf.write(full_path, archive_path)
                     count += 1
                     total_bytes += full_path.stat().st_size
 
         # Add clean relative .env template
         clean_env = (
-            "# YouTube & Spotify Downloader Desktop Configuration\n"
+            "# AuraPlayer Desktop Configuration\n"
             "BOT_TOKEN=\n"
             "PROXY_URL=auto\n"
             "PROXY_FALLBACK_URL=\n"
@@ -114,7 +114,7 @@ def package_standalone(is_lite: bool = False):
             "TRANSCRIPT_DIR=data/transcripts\n"
             "MAX_FILE_SIZE_MB=48\n"
         )
-        zf.writestr("YouTube_Spotify_Downloader_Desktop/.env", clean_env)
+        zf.writestr("AuraPlayer/.env", clean_env)
         count += 1
 
     archive_size_mb = out_zip.stat().st_size / (1024 * 1024)
