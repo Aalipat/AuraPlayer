@@ -2157,7 +2157,7 @@
     let activeThemeAccent = 'rgb(30, 215, 96)';
     let waveformPeaks = [];
     let currentWaveformPath = null;
-    let currentLyricsData = null;
+    let activeKaraokeLyrics = null;
     let activeLyricIndex = -1;
     let isLyricsModalOpen = false;
 
@@ -2514,10 +2514,13 @@
     function toggleBottomPlay() {
       if (!bottomAudio.src) return;
       if (bottomAudio.paused) {
-        bottomAudio.play();
-        if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-pause text-xs';
-        setVisualizerState(true);
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        bottomAudio.play().then(() => {
+          if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-pause text-xs';
+          setVisualizerState(true);
+          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        }).catch(err => {
+          console.warn('Playback play() caught:', err);
+        });
       } else {
         bottomAudio.pause();
         if (playerPlayIcon) playerPlayIcon.className = 'fa-solid fa-play text-xs ml-0.5';
@@ -2904,7 +2907,7 @@
         const url = `/api/media/lyrics?path=${encodeURIComponent(path)}&title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&duration=${bottomAudio.duration || 0}`;
         const res = await fetch(url);
         const data = await res.json();
-        currentLyricsData = data;
+        activeKaraokeLyrics = data;
         renderLyricsContent(data);
       } catch (e) {
         if (listEl) {
@@ -2946,8 +2949,8 @@
     }
 
     function syncLyricsWithAudio(currentTime) {
-      if (!isLyricsModalOpen || !currentLyricsData || !currentLyricsData.is_synced) return;
-      const lines = currentLyricsData.lines || [];
+      if (!isLyricsModalOpen || !activeKaraokeLyrics || !activeKaraokeLyrics.is_synced) return;
+      const lines = activeKaraokeLyrics.lines || [];
       if (!lines.length) return;
 
       let activeIdx = -1;
