@@ -1254,11 +1254,18 @@
       ];
 
       qualities.forEach(q => {
-        const sizeBadge = info.qualities && info.qualities[q.key] ? ` [${info.qualities[q.key]}]` : '';
+        const sizeVal = info.qualities ? info.qualities[q.key] : null;
+        const sizeBadge = sizeVal ? ` [${sizeVal}]` : (info.qualities ? ' [ناموجود]' : '');
         const btn = document.createElement('button');
-        btn.className = `p-3 rounded-xl border text-xs font-bold transition flex flex-col items-center justify-center gap-1 hover:text-white ${q.color}`;
-        btn.innerHTML = `<span class="flex items-center gap-1"><i class="fa-solid fa-video"></i> ${q.label}</span><span class="text-[10px] opacity-75">${sizeBadge}</span>`;
-        btn.onclick = () => startDownload('video', q.key);
+        if (sizeVal === null && info.qualities) {
+          btn.className = 'p-3 rounded-xl border border-slate-800 bg-slate-900/30 text-slate-500 text-xs font-bold flex flex-col items-center justify-center gap-1 opacity-50 cursor-not-allowed';
+          btn.disabled = true;
+          btn.innerHTML = `<span class="flex items-center gap-1"><i class="fa-solid fa-ban text-[10px]"></i> ${q.label}</span><span class="text-[10px] text-slate-500">${sizeBadge}</span>`;
+        } else {
+          btn.className = `p-3 rounded-xl border text-xs font-bold transition flex flex-col items-center justify-center gap-1 hover:text-white ${q.color}`;
+          btn.innerHTML = `<span class="flex items-center gap-1"><i class="fa-solid fa-video"></i> ${q.label}</span><span class="text-[10px] opacity-75">${sizeBadge}</span>`;
+          btn.onclick = () => startDownload('video', q.key);
+        }
         btnContainer.appendChild(btn);
       });
 
@@ -2548,8 +2555,8 @@
       // Load audio waveform
       loadWaveform(filePath);
 
-      // If lyrics modal is currently open, load lyrics for this track
-      if (isLyricsModalOpen) {
+      // If lyrics modal or sidebar is currently open, load lyrics/subtitles for this track or video
+      if (isLyricsModalOpen || isLyricsSidebarOpen) {
         loadCurrentTrackLyrics();
       }
 

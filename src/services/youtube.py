@@ -80,11 +80,6 @@ class YouTubeService:
             'http_chunk_size': 10485760,
             'concurrent_fragment_downloads': 4,
             'ffmpeg_location': settings.ffmpeg_dir,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'web']
-                }
-            },
         }
         active_proxy = self.proxy_url or settings.get_active_proxy()
         if active_proxy:
@@ -237,7 +232,7 @@ class YouTubeService:
         return result
 
     def _estimate_qualities(self, formats: list, duration: int = 0) -> Dict[str, Optional[int]]:
-        """Find accurate format size estimates (video + audio) for 360, 480, 720, 1080."""
+        """Find accurate format size estimates (video + audio) for 360, 480, 720, 1080 without cross-polluting."""
         qualities: Dict[str, Optional[int]] = {'360': None, '480': None, '720': None, '1080': None}
 
         # Find best audio size to add to video-only streams
@@ -250,36 +245,39 @@ class YouTubeService:
                 if a_size and a_size > best_audio_size:
                     best_audio_size = a_size
 
-        for f in formats:
-            height = f.get('height')
-            if not height or f.get('vcodec') == 'none':
-                continue
+        for q in ('360', '480', '720', '1080'):
+            target_h = int(q)
+            matching_streams = []
+            for f in formats:
+                if f.get('vcodec') in (None, 'none'):
+                    continue
+                h = f.get('height') or 0
+                w = f.get('width') or 0
+                res = min(h, w) if (h > 0 and w > 0) else h
+                if res <= 0:
+                    continue
+                # Match resolution tier (exact or within standard resolution bracket)
+                if res == target_h or (target_h - 40 <= res <= target_h + 40):
+                    matching_streams.append(f)
 
-            size = f.get('filesize') or f.get('filesize_approx')
-            if not size and duration:
-                tbr = f.get('tbr') or f.get('vbr')
-                if tbr:
-                    size = int((tbr * 1000 / 8) * duration)
-
-            if not size:
-                continue
-
-            # If stream is video-only, add best audio size
-            total_size = size + (best_audio_size if f.get('acodec') == 'none' else 0)
-
-            for q in ('360', '480', '720', '1080'):
-                if height == int(q) or (height <= int(q) and qualities[q] is None):
-                    if qualities[q] is None or total_size > qualities[q]:
-                        qualities[q] = total_size
+            if matching_streams:
+                best_f = max(
+                    matching_streams,
+                    key=lambda x: x.get('filesize') or x.get('filesize_approx') or (x.get('tbr', 0) * duration * 125)
+                )
+                sz = best_f.get('filesize') or best_f.get('filesize_approx')
+                if not sz and duration and best_f.get('tbr'):
+                    sz = int((best_f['tbr'] * 1000 / 8) * duration)
+                if sz:
+                    total_sz = sz + (best_audio_size if best_f.get('acodec') == 'none' else 0)
+                    qualities[q] = total_sz
 
         return qualities
 
     def _sync_download_video(self, url: str, quality: str, out_template: str) -> str:
         opts = self._get_base_ydl_opts()
         format_selector = (
-            f"bestvideo[height<={quality}][ext=mp4]+bestaudio[ext=m4a]/"
-            f"bestvideo[height<={quality}]+bestaudio/"
-            f"best[height<={quality}]/best"
+            f"bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best"
         )
         opts.update({
             'format': format_selector,

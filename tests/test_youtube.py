@@ -88,3 +88,94 @@ async def test_api_info_playlist_endpoint():
         assert data["playlist_id"] == "PLMC9KNkIncKtPzgY-5rmhvj7fax8fdxoj"
         assert data["total_videos"] > 10
         assert len(data["videos"]) > 10
+
+
+def test_accurate_quality_estimation_distinct_sizes():
+    yt_service = YouTubeService()
+    formats = [
+        {'format_id': '18', 'height': 360, 'vcodec': 'avc1', 'acodec': 'mp4a', 'filesize': 15000000},
+        {'format_id': '135', 'height': 480, 'vcodec': 'avc1', 'acodec': 'none', 'filesize': 25000000},
+        {'format_id': '22', 'height': 720, 'vcodec': 'avc1', 'acodec': 'mp4a', 'filesize': 45000000},
+        {'format_id': '137', 'height': 1080, 'vcodec': 'avc1', 'acodec': 'none', 'filesize': 80000000},
+        {'format_id': '140', 'height': None, 'vcodec': 'none', 'acodec': 'mp4a', 'filesize': 5000000},
+    ]
+    qualities = yt_service._estimate_qualities(formats, duration=180)
+
+    # Every quality tier must have its own accurate size and strictly ascend
+    assert qualities['360'] == 15000000
+    assert qualities['480'] == 30000000  # 25M video + 5M best audio
+    assert qualities['720'] == 45000000
+    assert qualities['1080'] == 85000000  # 80M video + 5M best audio
+    assert qualities['360'] < qualities['480'] < qualities['720'] < qualities['1080']
+
+    # Test missing quality (e.g. only 720p available)
+    formats_720_max = [
+        {'format_id': '18', 'height': 360, 'vcodec': 'avc1', 'acodec': 'mp4a', 'filesize': 15000000},
+        {'format_id': '22', 'height': 720, 'vcodec': 'avc1', 'acodec': 'mp4a', 'filesize': 45000000},
+    ]
+    q_720 = yt_service._estimate_qualities(formats_720_max, duration=180)
+    assert q_720['360'] == 15000000
+    assert q_720['720'] == 45000000
+    assert q_720['1080'] is None
+    assert q_720['480'] is None
+
+
+def test_podcast_subtitles_and_vtt_parsing():
+    from src.services.lyrics import parse_lrc, parse_subtitles
+
+    # 1. Test long podcast LRC with hours [01:15:30.50]
+    podcast_lrc = (
+        "[00:05.00]Welcome to the podcast\n"
+        "[01:15:30.50]Discussion on deep technical topics\n"
+        "[02:00:00]Final thoughts and conclusion"
+    )
+    parsed_lrc = parse_lrc(podcast_lrc)
+    assert len(parsed_lrc) == 3
+    assert parsed_lrc[0]["time"] == 5.0
+    assert parsed_lrc[0]["text"] == "Welcome to the podcast"
+    assert parsed_lrc[1]["time"] == 4530.5  # 1*3600 + 15*60 + 30.5
+    assert parsed_lrc[1]["text"] == "Discussion on deep technical topics"
+    assert parsed_lrc[2]["time"] == 7200.0  # 2 hours
+
+    # 2. Test WebVTT subtitle parsing
+    sample_vtt = (
+        "WEBVTT\n\n"
+        "00:00:01.500 --> 00:00:04.200\n"
+        "Podcast Host: Hello and welcome!\n\n"
+        "00:01:25.000 --> 00:01:30.000\n"
+        "<c.yellow>Guest:</c> Glad to be here today."
+    )
+    parsed_vtt = parse_subtitles(sample_vtt)
+    assert len(parsed_vtt) == 2
+    assert parsed_vtt[0]["time"] == 1.5
+    assert "Hello and welcome!" in parsed_vtt[0]["text"]
+    assert parsed_vtt[1]["time"] == 85.0  # 1*60 + 25
+    assert "Glad to be here today." in parsed_vtt[1]["text"]
+
+
+@pytest.mark.asyncio
+async def test_companion_subtitle_lyrics_integration(tmp_path):
+    from src.services.lyrics import lyrics_service
+    from src.bot.config import settings
+
+    video_file = settings.download_dir / "test_podcast_video.mp4"
+    video_file.write_bytes(b"dummy_mp4_bytes")
+    vtt_file = settings.download_dir / "test_podcast_video.vtt"
+    vtt_file.write_text(
+        "WEBVTT\n\n00:00:10.000 --> 00:00:15.000\nHello podcast listener!\n",
+        encoding="utf-8"
+    )
+
+    try:
+        res = await lyrics_service.get_lyrics(media_path=video_file)
+        assert res["has_lyrics"] is True
+        assert res["is_synced"] is True
+        assert len(res["lines"]) == 1
+        assert res["lines"][0]["time"] == 10.0
+        assert res["lines"][0]["text"] == "Hello podcast listener!"
+    finally:
+        if video_file.exists():
+            video_file.unlink()
+        if vtt_file.exists():
+            vtt_file.unlink()
+

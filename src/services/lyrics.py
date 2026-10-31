@@ -22,12 +22,12 @@ LYRICS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 def parse_lrc(lrc_text: str) -> List[Dict[str, Any]]:
     """
-    Parses LRC format timestamps: [mm:ss.xx] or [mm:ss.xxx] or [mm:ss]
+    Parses LRC format timestamps: [mm:ss.xx] or [mm:ss] or [hh:mm:ss]
     Returns list of {"time": float, "text": str} sorted chronologically.
     """
     lines: List[Dict[str, Any]] = []
-    # Regex matches [01:23.45] or [01:23] or [01:23.456]
-    pattern = re.compile(r"\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\](.*)")
+    # Regex matches [01:23.45], [01:23], [1:15:30.50], [01:15:30]
+    pattern = re.compile(r"\[(?:(\d{1,2}):)?(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\](.*)")
 
     for raw_line in lrc_text.splitlines():
         line = raw_line.strip()
@@ -35,21 +35,62 @@ def parse_lrc(lrc_text: str) -> List[Dict[str, Any]]:
             continue
         m = pattern.match(line)
         if m:
-            mins = int(m.group(1))
-            secs = int(m.group(2))
-            millis_str = m.group(3) or "0"
+            hours = int(m.group(1)) if m.group(1) is not None else 0
+            mins = int(m.group(2))
+            secs = int(m.group(3))
+            millis_str = m.group(4) or "0"
             if len(millis_str) == 2:
                 millis = int(millis_str) * 10
             elif len(millis_str) == 1:
                 millis = int(millis_str) * 100
             else:
                 millis = int(millis_str[:3])
-            timestamp = mins * 60 + secs + (millis / 1000.0)
-            text = m.group(4).strip()
+            timestamp = hours * 3600 + mins * 60 + secs + (millis / 1000.0)
+            text = m.group(5).strip()
             lines.append({"time": round(timestamp, 2), "text": text})
 
     lines.sort(key=lambda x: x["time"])
     return lines
+
+
+def parse_subtitles(content: str) -> List[Dict[str, Any]]:
+    """
+    Parses WebVTT and SRT subtitle contents into timestamped line entries:
+    [{"time": float_seconds, "text": "cleaned text line"}]
+    """
+    pattern = re.compile(
+        r'(?:(\d{1,2}):)?(\d{2}):(\d{2})[.,](\d{2,3})\s*-->\s*(?:(\d{1,2}):)?(\d{2}):(\d{2})[.,](\d{2,3})'
+    )
+    lines = content.splitlines()
+    entries: List[Dict[str, Any]] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        m = pattern.search(line)
+        if m:
+            h = int(m.group(1) or 0)
+            m_val = int(m.group(2))
+            s = int(m.group(3))
+            ms = int(m.group(4).ljust(3, '0')[:3])
+            start_sec = round(h * 3600 + m_val * 60 + s + ms / 1000.0, 2)
+
+            text_lines = []
+            i += 1
+            while i < len(lines):
+                t_line = lines[i].strip()
+                if not t_line or pattern.search(t_line):
+                    break
+                clean = re.sub(r'<[^>]+>', '', t_line).strip()
+                if clean and not clean.isdigit() and not clean.startswith("WEBVTT"):
+                    text_lines.append(clean)
+                i += 1
+            if text_lines:
+                entries.append({'time': start_sec, 'text': ' '.join(text_lines)})
+            continue
+        i += 1
+
+    entries.sort(key=lambda x: x["time"])
+    return entries
 
 
 def normalize_track_metadata(raw_title: str = "", raw_artist: str = "", filename: str = "", artist: str = "") -> Tuple[str, str]:
@@ -157,31 +198,53 @@ class LyricsService:
         4. Multi-tier LRCLIB API querying
         5. Automatically loads or translates Persian synced lyrics
         """
-        # 1. Local .lrc file check
+        # 1. Local .lrc, .srt, .vtt file check
         if media_path and media_path.exists() and media_path.is_file():
-            companion_lrc = media_path.with_suffix(".lrc")
-            companion_fa = media_path.with_name(f"{media_path.stem}_persian.lrc")
-            if not companion_fa.exists():
-                companion_fa = media_path.with_name(f"{media_path.stem}_fa.lrc")
+            candidates = [
+                media_path.with_suffix(".lrc"),
+                media_path.with_suffix(".srt"),
+                media_path.with_suffix(".vtt"),
+                media_path.with_name(f"{media_path.stem}.en.srt"),
+                media_path.with_name(f"{media_path.stem}.en.vtt"),
+            ]
+            primary_file = next((f for f in candidates if f.exists() and f.stat().st_size > 0), None)
 
-            if companion_lrc.exists() and companion_lrc.stat().st_size > 0:
+            fa_candidates = [
+                media_path.with_name(f"{media_path.stem}_persian.lrc"),
+                media_path.with_name(f"{media_path.stem}_fa.lrc"),
+                media_path.with_name(f"{media_path.stem}_persian.srt"),
+                media_path.with_name(f"{media_path.stem}.fa.srt"),
+                media_path.with_name(f"{media_path.stem}_persian.vtt"),
+                media_path.with_name(f"{media_path.stem}.fa.vtt"),
+            ]
+            companion_fa = next((f for f in fa_candidates if f.exists() and f.stat().st_size > 0), None)
+
+            if primary_file or companion_fa:
                 try:
-                    content = companion_lrc.read_text(encoding="utf-8", errors="ignore")
-                    lines = parse_lrc(content)
+                    lines: List[Dict[str, Any]] = []
+                    content = ""
+                    if primary_file:
+                        content = primary_file.read_text(encoding="utf-8", errors="ignore")
+                        lines = parse_lrc(content) if primary_file.suffix == ".lrc" else parse_subtitles(content)
+
                     fa_lines: List[Dict[str, Any]] = []
                     fa_synced = ""
                     fa_plain = ""
                     bilingual = ""
-                    if companion_fa.exists() and companion_fa.stat().st_size > 0:
+                    if companion_fa:
                         fa_synced = companion_fa.read_text(encoding="utf-8", errors="ignore")
-                        fa_lines = parse_lrc(fa_synced)
+                        fa_lines = parse_lrc(fa_synced) if companion_fa.suffix == ".lrc" else parse_subtitles(fa_synced)
                         fa_plain = "\n".join(l["text"] for l in fa_lines if l.get("text"))
+
+                    if lines and fa_lines:
                         cls._pair_fa_lines(lines, fa_lines)
                         bilingual = "\n".join(
                             f"{l.get('text', '')}\n{l.get('fa_text', '')}"
                             for l in lines
                             if l.get("text") or l.get("fa_text")
                         )
+                    elif not lines and fa_lines:
+                        lines = fa_lines
 
                     if lines and include_translation and not fa_lines:
                         try:
@@ -194,11 +257,12 @@ class LyricsService:
                                 fa_lines = parse_lrc(fa_synced)
                                 cls._pair_fa_lines(lines, fa_lines)
                                 try:
-                                    companion_fa.write_text(fa_synced, encoding="utf-8")
+                                    save_fa = media_path.with_name(f"{media_path.stem}_persian.lrc")
+                                    save_fa.write_text(fa_synced, encoding="utf-8")
                                 except Exception:
                                     pass
                         except Exception as te:
-                            logger.debug(f"Local lrc auto-translation error: {te}")
+                            logger.debug(f"Local subtitle auto-translation error: {te}")
 
                     if lines:
                         return {
@@ -206,10 +270,10 @@ class LyricsService:
                             "has_lyrics": True,
                             "is_synced": True,
                             "source": "local",
-                            "clean_title": title,
-                            "clean_artist": artist,
+                            "clean_title": title or media_path.stem,
+                            "clean_artist": artist or "YouTube",
                             "lines": lines,
-                            "plain_lyrics": "\n".join(l["text"] for l in lines if l["text"]),
+                            "plain_lyrics": "\n".join(l["text"] for l in lines if l.get("text")),
                             "synced_lyrics": content,
                             "persian_lines": fa_lines,
                             "persian_synced": fa_synced,
@@ -217,10 +281,61 @@ class LyricsService:
                             "bilingual": bilingual,
                         }
                 except Exception as e:
-                    logger.debug(f"Failed to read local .lrc: {e}")
+                    logger.debug(f"Failed to read local subtitle/lyrics: {e}")
+
+        # 1.5. On-demand YouTube Video transcript resolution
+        fname = media_path.name if media_path else ""
+        v_id_match = re.search(r'[\[\(]([a-zA-Z0-9_\-]{11})[\]\)]', fname) or re.search(r'[\[\(]([a-zA-Z0-9_\-]{11})[\]\)]', title)
+        video_id = v_id_match.group(1) if v_id_match else None
+        if not video_id and fname:
+            m_pre = re.match(r'^([a-zA-Z0-9_\-]{11})(_|\.|$)', fname)
+            if m_pre:
+                video_id = m_pre.group(1)
+
+        if video_id:
+            try:
+                from src.services.subtitles import SubtitleService
+                sub_serv = SubtitleService()
+                yt_url = f"https://www.youtube.com/watch?v={video_id}"
+                en_text, _ = await asyncio.to_thread(sub_serv._sync_fetch_transcript, yt_url, "en", video_id)
+                fa_text, _ = await asyncio.to_thread(sub_serv._sync_fetch_transcript, yt_url, "fa", video_id)
+
+                if en_text or fa_text:
+                    parsed_en = parse_lrc(en_text) if en_text else []
+                    parsed_fa = parse_lrc(fa_text) if fa_text else []
+
+                    if media_path and media_path.exists():
+                        try:
+                            if en_text:
+                                media_path.with_suffix(".lrc").write_text(en_text, encoding="utf-8")
+                            if fa_text:
+                                media_path.with_name(f"{media_path.stem}_persian.lrc").write_text(fa_text, encoding="utf-8")
+                        except Exception:
+                            pass
+
+                    target_lines = parsed_en if parsed_en else parsed_fa
+                    if parsed_en and parsed_fa:
+                        cls._pair_fa_lines(target_lines, parsed_fa)
+
+                    return {
+                        "success": True,
+                        "has_lyrics": True,
+                        "is_synced": True,
+                        "source": "youtube_transcript",
+                        "clean_title": title or fname,
+                        "clean_artist": artist or "YouTube",
+                        "lines": target_lines,
+                        "plain_lyrics": "\n".join(l["text"] for l in target_lines if l.get("text")),
+                        "synced_lyrics": en_text,
+                        "persian_lines": parsed_fa,
+                        "persian_synced": fa_text,
+                        "persian_plain": "\n".join(l["text"] for l in parsed_fa if l.get("text")),
+                        "bilingual": "",
+                    }
+            except Exception as y_err:
+                logger.debug(f"YouTube on-demand transcript fetch failed: {y_err}")
 
         # 2. Normalize metadata
-        fname = media_path.name if media_path else ""
         clean_title, clean_artist = normalize_track_metadata(title, artist, fname)
 
         if not clean_title:

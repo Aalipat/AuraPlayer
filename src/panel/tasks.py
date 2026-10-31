@@ -181,11 +181,6 @@ class DownloadTaskManager:
                 'fragment': lambda n: min(2 * n, 10),
                 'extractor': lambda n: 3,
             },
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'web']
-                }
-            },
         }
         if hook:
             opts['progress_hooks'] = [hook]
@@ -201,6 +196,25 @@ class DownloadTaskManager:
             opts['js_runtimes'] = {'node': {'path': str(settings.node_path)}}
 
         return opts
+
+    async def _save_companion_transcripts(self, url: str, video_id: str, media_file: Optional[Path]) -> None:
+        """Fetches YouTube subtitles/transcript (English & Persian) and saves companion .lrc files for synced lyrics/podcast view."""
+        if not video_id or not media_file or not media_file.exists():
+            return
+        try:
+            # 1. Fetch transcript in English/Original
+            en_text, _ = await asyncio.to_thread(self.subtitle_service._sync_fetch_transcript, url, "en", video_id)
+            if en_text and en_text.strip():
+                lrc_path = media_file.with_suffix(".lrc")
+                lrc_path.write_text(en_text, encoding="utf-8")
+
+            # 2. Fetch transcript in Persian (with auto-translation)
+            fa_text, _ = await asyncio.to_thread(self.subtitle_service._sync_fetch_transcript, url, "fa", video_id)
+            if fa_text and fa_text.strip():
+                fa_lrc_path = media_file.with_name(f"{media_file.stem}_persian.lrc")
+                fa_lrc_path.write_text(fa_text, encoding="utf-8")
+        except Exception as e:
+            logger.debug(f"Companion transcript auto-fetch failed for {video_id}: {e}")
 
     async def execute_task(self, task_id: str) -> None:
         t = self.tasks.get(task_id)
@@ -539,9 +553,7 @@ class DownloadTaskManager:
                                 opts = self._get_common_ydl_opts(out_tmpl, None, ratelimit_kbps=ratelimit_kbps)
                                 opts.update({
                                     'format': (
-                                        f"bestvideo[height<={quality}][ext=mp4]+bestaudio[ext=m4a]/"
-                                        f"bestvideo[height<={quality}]+bestaudio/"
-                                        f"best[height<={quality}]/best"
+                                        f"bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best"
                                     ),
                                     'merge_output_format': 'mp4',
                                     'ignoreerrors': True,
@@ -559,6 +571,8 @@ class DownloadTaskManager:
 
                             if expected_mp4.exists() and expected_mp4.stat().st_size > 0:
                                 downloaded_count += 1
+                                # Auto-save companion transcripts
+                                await self._save_companion_transcripts(v_url, v_id or "", expected_mp4)
 
                         else:  # "audio"
                             out_tmpl = str(target_dir / f"{safe_title}.%(ext)s")
@@ -645,9 +659,7 @@ class DownloadTaskManager:
                     opts = self._get_common_ydl_opts(out_tmpl, hook)
                     opts.update({
                         'format': (
-                            f"bestvideo[height<={quality}][ext=mp4]+bestaudio[ext=m4a]/"
-                            f"bestvideo[height<={quality}]+bestaudio/"
-                            f"best[height<={quality}]/best"
+                            f"bestvideo[height<={quality}]+bestaudio/best[height<={quality}]/best"
                         ),
                         'merge_output_format': 'mp4',
                     })
@@ -665,6 +677,9 @@ class DownloadTaskManager:
                     expected = matches[0] if matches else None
 
                 if expected and expected.exists():
+                    # Auto-fetch companion transcripts (English & Persian) for synchronized playback
+                    await self._save_companion_transcripts(url, info.get('video_id', ''), expected)
+
                     t["filepath"] = str(expected)
                     t["filename"] = expected.name
                     t["total"] = format_bytes(expected.stat().st_size)
@@ -731,6 +746,10 @@ class DownloadTaskManager:
                             artist=info.get('channel', 'YouTube'),
                             cover_url=info.get('thumbnail')
                         )
+
+                    # Auto-fetch companion transcripts (English & Persian) for synchronized podcast/playback
+                    await self._save_companion_transcripts(url, info.get('video_id', ''), audio_file)
+
                     t["filepath"] = str(audio_file)
                     t["filename"] = audio_file.name
                     t["total"] = format_bytes(audio_file.stat().st_size)
